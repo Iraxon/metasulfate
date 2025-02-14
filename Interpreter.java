@@ -21,12 +21,12 @@ public class Interpreter {
         // For later:
         Map<String, Token> possible_matches = new HashMap<String, Token>();
         String builtString = "";
+        boolean foundWhitespace;
 
         for (int i = 0; i < src.length(); i++) {
+            foundWhitespace = whitespace.contains(src.charAt(i));
 
-            if (whitespace.contains(src.charAt(i)) || i + 1 == src.length()) {
-
-                if (possible_matches.size() > 0) {
+            if (foundWhitespace && possible_matches.size() > 0) {
                     // Get the String key with the longest length
                     String max = Collections.max(
                         possible_matches.keySet(),
@@ -34,10 +34,11 @@ public class Interpreter {
                     );
                     tokens.add(possible_matches.get(max));
                 }
+            if (foundWhitespace || i + 1 == src.length()) {
                 builtString = "";
                 possible_matches.clear();
-
-            } else {
+            }
+            if (!foundWhitespace) {
 
                 builtString += src.substring(i, i + 1);
                 Token next = Token.resolve(builtString);
