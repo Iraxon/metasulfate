@@ -1,13 +1,19 @@
-{
-    '+= = ['x 'y] =|> (x = x + y);
-    '-= = ['x 'y] =|> (x = x - y);
-    '*= = ['x 'y] =|> (x = x * y);
-    '/= = ['x 'y] =|> (x = x / y);
-    `**2 = ['x] =|> [x * x];
+(Copyright Iraxon 2025; this file is free software under the GNU GPL v3-or-later)
 
-    'sin = HARDCODE!SIN;
-    'cos = HARDCODE!COS;
-    'tan = HARDCODE!TAN;
+(CAPITAL names are **reserved for the use of the language itself**. All
+of your own names should be lowercase.)
 
-    'print = HARDCODE!PRINT;
-}
+(The following functions are provided by the interpreter:
+    - EQUALITY
+    - LAMBDA
+    - LET
+    - SUM
+)
+
+LET
+    `IDENTITY
+    [LAMBDA 'x x];
+
+LET
+    `FUNC
+    [LAMBDA 'arg_list ?]

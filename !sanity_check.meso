@@ -1,0 +1,8 @@
+EQUALITY
+    LET
+        f
+        func `x [sum x 3]
+        sum
+            f 7
+            4
+    14
