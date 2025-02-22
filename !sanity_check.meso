@@ -1,8 +1,8 @@
-EQUALITY
+EQUAL
     LET
         f
-        func `x [sum x 3]
-        sum
+        [SUM DOT 3]
+        SUM
             f 7
             4
     14
