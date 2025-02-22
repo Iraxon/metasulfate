@@ -1,19 +1,53 @@
-(Copyright Iraxon 2025; this file is free software under the GNU GPL v3-or-later)
+(Copyright 2025 Iraxon; this file is free software under the GNU GPL v3-or-later)
 
 (CAPITAL names are **reserved for the use of the language itself**. All
 of your own names should be lowercase.)
 
-(The following functions are provided by the interpreter:
-    - EQUALITY
-    - LAMBDA
-    - LET
+(The following functions and constants are provided by the interpreter directly:
+    - EQUALITY :: Consumes two arguments; evaluates to T or F depending on their equality
+    - F :: Boolean false
+    - LAMBDA_DOT :: Consumes one argument; evaluates to a unary function with the provided argument as its body;
+            DOT is the name of that
+            unary function's paramter.
+    - LET :: Consumes three arguments; the first should be a name; the second should be a value;
+            the third argument--often written as if independent of the LET--is an expression;
+            any ocurrences of the name in that expression will be replaced with the value
+    - PRODUCT
     - SUM
+    - T :: Boolean true
+This file serves to provide all the others a programmer would expect
+the language to have.)
+
+(Up to the introduction of FUNC, all of these functions will have alternate
+definitions available in a comment. Nested LAMBDA and especially nested
+LAMBDA_DOT is nigh-unreadable.)
+
+(
+    {['DOT, 'body] => [{ 'arg_name => [body]}]}
 )
-
 LET
-    `IDENTITY
-    [LAMBDA 'x x];
-
+    'LAMBDA
+    LAMBDA_DOT [
+        LET 'arg_name DOT
+        LAMBDA_DOT [
+            LET 'body DOT
+            LAMBDA_DOT [
+                LET
+                    arg_name
+                    DOT
+                body
+            ].
+        ].
+    ].
+LAMBDA.
+(
 LET
-    `FUNC
+    'IDENTITY
+    LAMBDA 'x [x].
+
+(FUNC is the complete function definition)
+LET
+    'FUNC
     [LAMBDA 'arg_list ?]
+
+)
