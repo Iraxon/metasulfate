@@ -1,31 +1,53 @@
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Scanner;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongBinaryOperator;
 
 public class Metasulfate {
     public static void main(final String[] args) {
         System.out.println("\n\n\n---\n" +
-                eval("LET 'successor [SUM DOT 1] LET 'x 3 LET 'y 2 successor PROD 2 SUM x y") + "\n---\n\n\n");
+                evalFile("!sanity_check.meso") + "\n---\n\n\n");
+        // System.out.println("\n---\n" +
+        // interpreter.evalFile("!standard_library.meso"));
+        /*
+         * TEST PROGRAMS:
+         * LAMBDA_DOT [PRODUCT DOT 2] LET 'x 3 LET 'y 2 SUM x y
+         * == 10
+         * LET 'successor [SUM DOT 1] LET 'x 3 LET 'y 2 successor PROD 2 SUM x y
+         * == 11
+         * "LAMBDA_DOT [LET 'x DOT LAMBDA_DOT [SUM x DOT] .] 1 .
+         */
     }
 
     public static MesoValue eval(final String src) {
         return parse(lex(src));
     }
-    // System.out.println("\n---\n" +
-    // interpreter.evalFile("!standard_library.meso"));
-    /*
-     * TEST PROGRAMS:
-     * LAMBDA_DOT [PRODUCT DOT 2] LET 'x 3 LET 'y 2 SUM x y
-     * == 10
-     *
-     * "LAMBDA_DOT [LET 'x DOT LAMBDA_DOT [SUM x DOT] .] 1 .
-     */
+
+    public static MesoValue evalFile(final String path) {
+        String src = "";
+        final Scanner s;
+        try {
+            s = new Scanner(new File(path));
+        } catch (final FileNotFoundException e) {
+            throw new UncheckedIOException(e);
+        }
+        while (s.hasNextLine()) {
+            src += s.nextLine();
+        }
+        s.close();
+        return eval(src);
+    }
 
     // Lexer stuff:
 
@@ -43,37 +65,52 @@ public class Metasulfate {
 
     private static List<String> lex(final String rawSrc) {
         final List<String> rVal = new ArrayList<>();
-        _lex(rVal, rawSrc, "", 0);
+        _lex(rVal, rawSrc);
         System.out.println("Lexer returning:\n" + rVal);
         return rVal;
     }
 
-    private static void _lex(final List<String> list, final String src, String acc, int cursor) {
+    private static void _lex(final List<String> list, final String src) {
         final Consumer<String> add = (s) -> {
             if (s.length() > 0) {
                 list.add(s);
             }
         };
+        String acc = "";
+        int cursor = 0;
+
+        int commentNestingDepth = 0; // Increments on left paren; decreases on right paren
+
         char current;
         final int len = src.length();
         for (cursor = 0; cursor < len; cursor++) {
             current = src.charAt(cursor);
-            if (Character.isWhitespace(current)) {
-                if (acc.length() > 0 && whitespaceCompatible.contains(acc.charAt(0))) {
-                    acc += current;
-                } else {
+            if (current == '(') {
+                commentNestingDepth++;
+            }
+            if (commentNestingDepth == 0) {
+                if (Character.isWhitespace(current)) {
+                    if (acc.length() > 0 && whitespaceCompatible.contains(acc.charAt(0))) {
+                        acc += current;
+                    } else {
+                        add.accept(acc);
+                        acc = "";
+                    }
+                } else if (punctuation.contains(current)) {
                     add.accept(acc);
                     acc = "";
+                    add.accept("" + current);
+                } else {
+                    if (cursor + 1 >= src.length()) {
+                        add.accept(acc + current);
+                    }
+                    acc += current;
                 }
-            } else if (punctuation.contains(current)) {
-                add.accept(acc);
-                acc = "";
-                add.accept("" + current);
-            } else {
-                if (cursor + 1 >= src.length()) {
-                    add.accept(acc + current);
-                }
-                acc += current;
+            } else if (commentNestingDepth < 0) {
+                throw new IllegalStateException("Comment nesting depth below zero");
+            }
+            if (current == ')') {
+                commentNestingDepth--;
             }
         }
     }
@@ -121,9 +158,9 @@ class Parser {
             default:
                 MesoValue rVal = scope.get(t);
                 MesoValue arg;
-                while (rVal instanceof MesoClosure && (arg = _parse(scope)) != NoApply.NO_APPLY) {
+                while (rVal instanceof Closure && (arg = _parse(scope)) != NoApply.NO_APPLY) {
                     System.out.println("Applying: " + rVal);
-                    rVal = ((MesoClosure) rVal).apply(arg);
+                    rVal = ((Closure) rVal).apply(arg);
                     System.out.println("rVal is now: " + rVal);
                 }
                 return rVal;
@@ -180,19 +217,14 @@ enum NoApply implements MesoValue {
     NO_APPLY
 }
 
-enum Quote implements MesoValue {
-    QUOTE
-}
-
 record MesoInt(long v) implements MesoValue {
     public static final Map<String, LongBinaryOperator> opMap = Map.ofEntries(
-        Map.entry("SUM", (x, y) -> (x + y)),
-        Map.entry("DIFF", (x, y) -> (x - y)),
-        Map.entry("DELTA", (x, y) -> (y - x)),
-        Map.entry("PROD", (x, y) -> (x * y)),
-        Map.entry("QUO", (x, y) -> (x / y)),
-        Map.entry("POW", (x, y) -> ((long) Math.pow(x, y)))
-    );
+            Map.entry("SUM", (x, y) -> (x + y)),
+            Map.entry("DIFF", (x, y) -> (x - y)),
+            Map.entry("DELTA", (x, y) -> (y - x)),
+            Map.entry("PROD", (x, y) -> (x * y)),
+            Map.entry("QUO", (x, y) -> (x / y)),
+            Map.entry("POW", (x, y) -> ((long) Math.pow(x, y))));
 
     public static MesoInt op(final LongBinaryOperator op, final MesoValue x, final MesoValue y) {
         return new MesoInt(op.applyAsLong(((MesoInt) x).v, ((MesoInt) y).v));
@@ -206,7 +238,11 @@ record MesoInt(long v) implements MesoValue {
 record MesoName(String n) implements MesoValue {
 }
 
-record MesoClosure(List<String> def, Scope env) implements MesoValue {
+interface Closure extends MesoValue {
+    public MesoValue apply(MesoValue arg);
+}
+
+record MesoClosure(List<String> def, Scope env) implements Closure {
 
     public MesoValue apply(final MesoValue arg) {
         return new Parser(def).parse(env.extend("DOT", arg));
@@ -214,6 +250,19 @@ record MesoClosure(List<String> def, Scope env) implements MesoValue {
 
     public String toString() {
         return def.toString() + " " + env.toString();
+    }
+}
+
+// UNTESTED
+record JavaClosure(Function<MesoValue, MesoValue> func, Scope env) implements Closure {
+    public JavaClosure(BiFunction<MesoValue, MesoValue, MesoValue> biFunc, Scope env) {
+        this(
+                v1 -> new JavaClosure(v2 -> biFunc.apply(v1, v2), env),
+                env);
+    }
+
+    public MesoValue apply(final MesoValue arg) {
+        return func.apply(arg);
     }
 }
 
@@ -233,6 +282,17 @@ record Scope(Scope outer, MesoName key, MesoValue value) {
 
     public Scope extend(final String key, final MesoValue value) {
         return new Scope(this, new MesoName(key), value);
+    }
+
+    // UNTESTED
+    public Scope extend(final Scope other) {
+        Scope rVal = this;
+        Scope current = other;
+        while (current.outer != null) {
+            rVal = rVal.extend(current.key, current.value);
+            current = current.outer;
+        }
+        return rVal;
     }
 
     public MesoValue get(final MesoValue k) {
