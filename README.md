@@ -15,4 +15,4 @@ The square-bracked expression is a function definition. The special value DOT st
 
 ## License
 
-Metasulfate and the Metasulfate interpreter are free and open source software under the GNU GPL v3 or later.
+Metasulfate is free and open source software under the GNU GPL v3 or later.
