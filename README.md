@@ -9,9 +9,7 @@ into your own IDE and run it. Changing this will be first priority once language
 
 ## Example Program
 
-See [`!sanity_check.meso`](https://github.com/Iraxon/metasulfate/blob/main/!sanity_check.meso). The indentation helps
-readability by nesting argument under the functions they are supplied to, but it is not significant to the interpreter.
-The square-bracked expression is a function definition. The special value DOT stands for the input of the function.
+See [`!sanity_check.meso`](https://github.com/Iraxon/metasulfate/blob/main/!sanity_check.meso).
 
 ## License
 
