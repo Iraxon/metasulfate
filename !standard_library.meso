@@ -18,6 +18,7 @@ of your own names should be lowercase.)
             the third argument--often written as if independent of the LET--is an expression;
             any ocurrences of the name in that expression will be replaced with the value
     - PROD  :: Numeric multiplication
+    - POW   :: Numeric exponentiation
     - QUO   :: Numerc division
     - SUM   :: Numeric addition
     - T     :: Boolean true
