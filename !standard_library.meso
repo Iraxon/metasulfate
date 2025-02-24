@@ -9,7 +9,7 @@ of your own names should be lowercase.)
     and POW (exponentiation)
 
     - APPLY :: See [ ], .
-    - EQUALITY :: Consumes two arguments; evaluates to T or F depending on their equality
+    - EQUAL :: Consumes two arguments; evaluates to T or F depending on their equality
     - F :: Boolean false
     - [ ] :: Literal function/quotation delimeters; these will not be applied by default
     - LET :: Consumes three arguments; the first should be a name; the second should be a value;
@@ -22,3 +22,7 @@ of your own names should be lowercase.)
 
 This file serves to provide all the others a programmer would expect
 the language to have.)
+
+LET
+    'DELTA
+    [LET 'x DOT [DIFF DOT x]]
