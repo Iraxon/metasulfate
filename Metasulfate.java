@@ -1,3 +1,9 @@
+/**
+ * Copyright Iraxon 2025
+ *
+ * This file is free software under the GNU GPL v3 or later.
+ */
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.UncheckedIOException;
@@ -17,9 +23,7 @@ import java.util.function.LongBinaryOperator;
 public class Metasulfate {
     public static void main(final String[] args) {
         System.out.println("\n\n\n---\n" +
-                evalFile("!sanity_check.meso") + "\n---\n\n\n");
-        // System.out.println("\n---\n" +
-        // interpreter.evalFile("!standard_library.meso"));
+                evalFile ("!standard_library.meso") + "\n---\n\n\n");
         /*
          * TEST PROGRAMS:
          * LAMBDA_DOT [PRODUCT DOT 2] LET 'x 3 LET 'y 2 SUM x y
@@ -31,7 +35,7 @@ public class Metasulfate {
     }
 
     public static MesoValue eval(final String src) {
-        return parse(lex(src));
+        return parse(Lexer.lex(src));
     }
 
     public static MesoValue evalFile(final String path) {
@@ -49,7 +53,19 @@ public class Metasulfate {
         return eval(src);
     }
 
-    // Lexer stuff:
+    private static MesoValue parse(final List<String> src) {
+        return new Parser(src).parse(Scope.defaultScope);
+    }
+}
+
+class Lexer {
+
+    public static List<String> lex(final String rawSrc) {
+        final List<String> rVal = new ArrayList<>();
+        _lex(rVal, rawSrc);
+        System.out.println("Lexer returning:\n" + rVal);
+        return rVal;
+    }
 
     private static final Set<Character> punctuation = new HashSet<>(
             Arrays.asList(new Character[] {
@@ -62,13 +78,6 @@ public class Metasulfate {
             }));
     private static final Set<Character> whitespaceCompatible = new HashSet<>(
             Arrays.asList(new Character[] { '(', '\"' }));
-
-    private static List<String> lex(final String rawSrc) {
-        final List<String> rVal = new ArrayList<>();
-        _lex(rVal, rawSrc);
-        System.out.println("Lexer returning:\n" + rVal);
-        return rVal;
-    }
 
     private static void _lex(final List<String> list, final String src) {
         final Consumer<String> add = (s) -> {
@@ -86,6 +95,8 @@ public class Metasulfate {
         for (cursor = 0; cursor < len; cursor++) {
             current = src.charAt(cursor);
             if (current == '(') {
+                add.accept(acc);
+                acc = "";
                 commentNestingDepth++;
             }
             if (commentNestingDepth == 0) {
@@ -113,10 +124,6 @@ public class Metasulfate {
                 commentNestingDepth--;
             }
         }
-    }
-
-    private static MesoValue parse(final List<String> src) {
-        return new Parser(src).parse(Scope.defaultScope);
     }
 }
 
@@ -221,12 +228,12 @@ record MesoInt(long v) implements MesoValue {
     public static final Map<String, LongBinaryOperator> opMap = Map.ofEntries(
             Map.entry("SUM", (x, y) -> (x + y)),
             Map.entry("DIFF", (x, y) -> (x - y)),
-            Map.entry("DELTA", (x, y) -> (y - x)),
             Map.entry("PROD", (x, y) -> (x * y)),
             Map.entry("QUO", (x, y) -> (x / y)),
             Map.entry("POW", (x, y) -> ((long) Math.pow(x, y))));
 
     public static MesoInt op(final LongBinaryOperator op, final MesoValue x, final MesoValue y) {
+        System.out.println("Performing int operation " + op + " on:\n" + x + "\nand:\n" + y);
         return new MesoInt(op.applyAsLong(((MesoInt) x).v, ((MesoInt) y).v));
     }
 
