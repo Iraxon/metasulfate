@@ -14,7 +14,6 @@ of your own names should be lowercase.)
     - DOT   :: Refers to the argument (use inside function definitions)
     - EQUAL :: Consumes two arguments; evaluates to T or F depending on their equality
     - F     :: Boolean false
-    - [ ]   :: Literal function/quotation delimeters; these will not be applied to following terms by default
     - LET   :: Consumes three arguments; the first should be a name; the second should be a value;
             the third argument--often written as if independent of the LET--is an expression;
             any ocurrences of the name in that expression will be replaced with the value
@@ -22,6 +21,7 @@ of your own names should be lowercase.)
     - QUO   :: Numerc division
     - SUM   :: Numeric addition
     - T     :: Boolean true
+    - [ ]   :: Literal function/quotation delimeters; these will not be applied to following terms by default
     - .     :: No apply; if this appears as an argument to a function that would otherwise be applied,
             the function itself will be returned; not necessary for [] literal functions, which will not be
             applied without explicit use of APPLY
