@@ -3,20 +3,26 @@
 (CAPITAL names are **reserved for the use of the language itself**. All
 of your own names should be lowercase.)
 
-(The following functions and constants are provided by the interpreter directly:
+(The following functions and constants are provided by the interpreter directly: ! ! ! ! ! !!!INCOMPLETE LIST!!! ! ! ! !
 
     - Basic arithmetic operations SUM, DIFF, DELTA (x, y => y - x), PROD (product), QUO (quotient)
     and POW (exponentiation)
 
     - APPLY :: See [ ], .
+    - DELTA :: Numeric subtraction (second arg - first arg)
+    - DIFF :: Numeric subtraction (first arg - second arg)
+    - DOT :: Refers to the argument (use inside function definitions)
     - EQUAL :: Consumes two arguments; evaluates to T or F depending on their equality
     - F :: Boolean false
-    - [ ] :: Literal function/quotation delimeters; these will not be applied by default
+    - [ ] :: Literal function/quotation delimeters; these will not be applied to following terms by default
     - LET :: Consumes three arguments; the first should be a name; the second should be a value;
             the third argument--often written as if independent of the LET--is an expression;
             any ocurrences of the name in that expression will be replaced with the value
+    - PROD :: Numeric multiplication
+    - QUO :: Numerc division
+    - SUM :: Numeric addition
     - T :: Boolean true
-    - . :: no apply; if this appears as an argument to a function that would otherwise be applied,
+    - . :: No apply; if this appears as an argument to a function that would otherwise be applied,
     the function itself will be returned; not necessary for [] literal functions, which will not be
     applied without explicit use of APPLY
 
@@ -25,4 +31,4 @@ the language to have.)
 
 LET
     'DELTA
-    [LET 'x DOT [DIFF DOT x]]
+    [LET 'first DOT [DIFF DOT first]]
