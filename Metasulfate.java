@@ -1,3 +1,4 @@
+
 /**
  * Copyright Iraxon 2025
  *
@@ -23,7 +24,7 @@ import java.util.function.LongBinaryOperator;
 public class Metasulfate {
     public static void main(final String[] args) {
         System.out.println("\n\n\n---\n" +
-                evalFile ("!standard_library.meso") + "\n---\n\n\n");
+                evalFile("!standard_library.meso") + "\n---\n\n\n");
         /*
          * TEST PROGRAMS:
          * LAMBDA_DOT [PRODUCT DOT 2] LET 'x 3 LET 'y 2 SUM x y
@@ -150,9 +151,6 @@ class Parser {
             return new MesoInt(Long.valueOf(t));
         } catch (final NumberFormatException e) {
         }
-        if (MesoInt.opMap.containsKey(t)) {
-            return MesoInt.op(MesoInt.opMap.get(t), _parse(scope), _parse(scope));
-        }
         switch (t) {
             case "[":
                 return new MesoClosure(grabDelimitedRange(t, "]"), scope);
@@ -163,8 +161,15 @@ class Parser {
             case "\'":
                 return new MesoName(grab());
             default:
-                MesoValue rVal = scope.get(t);
+                MesoValue rVal;
                 MesoValue arg;
+
+                try {
+                    rVal = new Operator(t);
+                } catch (IllegalArgumentException e) {
+                    rVal = scope.get(t);
+                }
+
                 while (rVal instanceof Closure && (arg = _parse(scope)) != NoApply.NO_APPLY) {
                     System.out.println("Applying: " + rVal);
                     rVal = ((Closure) rVal).apply(arg);
@@ -225,13 +230,15 @@ enum NoApply implements MesoValue {
 }
 
 record MesoInt(long v) implements MesoValue {
-    public static final Map<String, LongBinaryOperator> opMap = Map.ofEntries(
-            Map.entry("SUM", (x, y) -> (x + y)),
-            Map.entry("DIFF", (x, y) -> (x - y)),
-            Map.entry("PROD", (x, y) -> (x * y)),
-            Map.entry("QUO", (x, y) -> (x / y)),
-            Map.entry("POW", (x, y) -> ((long) Math.pow(x, y))));
 
+    /**
+     * Applies a LongBinaryOperator to the values of two
+     * MesoInts and makes a new MesoInt from the result
+     * @param op LongBinaryOperator to apply
+     * @param x First arg
+     * @param y Second arg
+     * @return The new MesoInt representing the result
+     */
     public static MesoInt op(final LongBinaryOperator op, final MesoValue x, final MesoValue y) {
         System.out.println("Performing int operation " + op + " on:\n" + x + "\nand:\n" + y);
         return new MesoInt(op.applyAsLong(((MesoInt) x).v, ((MesoInt) y).v));
@@ -260,7 +267,65 @@ record MesoClosure(List<String> def, Scope env) implements Closure {
     }
 }
 
-// UNTESTED
+/**
+ * Provides the built-in operations that Metasulfate supports
+ */
+enum Operation {
+    SUM((x, y) -> x + y),
+    DIFF((x, y) -> x - y),
+
+    PROD((x, y) -> x * y),
+    QUO((x, y) -> x / y),
+    MOD((x, y) -> x % y),
+
+    POW((x, y) -> (long) (Math.pow(x, y)));
+
+    public final LongBinaryOperator longFunc;
+
+    private Operation(LongBinaryOperator longFunc) {
+        this.longFunc = longFunc;
+    }
+
+    /**
+     * Set of String reps of the operations, for use in checking
+     * if a String represents one of the operations
+     */
+    public static final Set<String> Operations = new HashSet<String>(
+            Arrays.stream(values()).map((n) -> (n.name())).toList());
+}
+
+record Operator(Operation op) implements Closure {
+
+    /**
+     * Construct an operator closure from a String naming the operator
+     * @param s the String
+     * @throws IllegalArgumentException if the String does not name an operator
+     */
+    public Operator(String s) throws IllegalArgumentException {
+        this(Operation.valueOf(s));
+    }
+
+    public StageTwoOperator apply(final MesoValue arg1) {
+        return new StageTwoOperator(op, arg1);
+    }
+
+    /**
+     * Due to the curried nature of Metasulfate functions,
+     * binary operators are actually two closures; this is the
+     * closure for the inner function
+     */
+    record StageTwoOperator(Operation op, MesoValue arg1) implements Closure {
+        public MesoValue apply(final MesoValue arg2) {
+            if (arg1 instanceof MesoInt) {
+                return MesoInt.op(op.longFunc, arg1, arg2);
+            }
+            throw new IllegalArgumentException(
+                    "Invalid argument set for operation:\n" + op + "\narg1:\n" + arg1 + "\narg2:\n" + arg2);
+        }
+    }
+}
+
+// UNTESTED; possible won't be used
 record JavaClosure(Function<MesoValue, MesoValue> func, Scope env) implements Closure {
     public JavaClosure(BiFunction<MesoValue, MesoValue, MesoValue> biFunc, Scope env) {
         this(
