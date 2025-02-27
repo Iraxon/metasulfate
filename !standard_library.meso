@@ -36,14 +36,21 @@ of your own names should be lowercase.)
 This file serves to provide all the others a programmer would expect
 the language to have.)
 
-LET
-    'TRUE
-    T
+EXPORT
 
-LET
-    'FALSE
-    F
+LET 'FUN
+    [LET 'arg DOT [LET 'body DOT
 
-LET
-    'DELTA
-    [LET 'first DOT [DIFF DOT first]]
+    ]]
+
+LET 'DELTA
+    [LET 'x DOT [LET 'y DOT
+        DIFF y x
+    ]]
+
+LET 'POLAR
+    [LET 'x DOT [ LET 'y DOT
+
+    ]]
+
+ENV

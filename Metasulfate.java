@@ -48,14 +48,14 @@ public class Metasulfate {
             throw new UncheckedIOException(e);
         }
         while (s.hasNextLine()) {
-            src += s.nextLine();
+            src += s.nextLine() + " ";
         }
         s.close();
         return eval(src);
     }
 
     private static MesoValue parse(final List<String> src) {
-        return new Parser(src).parse(Scope.defaultScope);
+        return new Parser(src).parse(Env.defaultScope);
     }
 }
 
@@ -101,7 +101,7 @@ class Lexer {
                 commentNestingDepth++;
             }
             if (commentNestingDepth == 0) {
-                if (Character.isWhitespace(current)) {
+                if (Character.isWhitespace((int) current)) {
                     if (acc.length() > 0 && whitespaceCompatible.contains(acc.charAt(0))) {
                         acc += current;
                     } else {
@@ -137,7 +137,7 @@ class Parser {
         this.cursor = 0;
     }
 
-    public MesoValue parse(final Scope scope) {
+    public MesoValue parse(final Env scope) {
         final MesoValue rVal = _parse(scope);
         if (hasNext()) {
             throw new IllegalArgumentException("Trailing data in program");
@@ -145,7 +145,7 @@ class Parser {
         return rVal;
     }
 
-    private MesoValue _parse(final Scope scope) {
+    private MesoValue _parse(final Env scope) {
         final String t = grab();
         try {
             return new MesoInt(Long.valueOf(t));
@@ -160,6 +160,10 @@ class Parser {
                 return _parse(scope.extend(name, value));
             case "\'":
                 return new MesoName(grab());
+            case "ENV":
+                return scope;
+            case "EXPORT":
+                return _parse(scope);
             default:
                 MesoValue rVal;
                 MesoValue arg;
@@ -234,9 +238,10 @@ record MesoInt(long v) implements MesoValue {
     /**
      * Applies a LongBinaryOperator to the values of two
      * MesoInts and makes a new MesoInt from the result
+     *
      * @param op LongBinaryOperator to apply
-     * @param x First arg
-     * @param y Second arg
+     * @param x  First arg
+     * @param y  Second arg
      * @return The new MesoInt representing the result
      */
     public static MesoInt op(final LongBinaryOperator op, final MesoValue x, final MesoValue y) {
@@ -250,20 +255,31 @@ record MesoInt(long v) implements MesoValue {
 }
 
 record MesoName(String n) implements MesoValue {
+    public String toString() {
+        return "\'" + n;
+    }
 }
 
 interface Closure extends MesoValue {
     public MesoValue apply(MesoValue arg);
 }
 
-record MesoClosure(List<String> def, Scope env) implements Closure {
+record MesoClosure(List<String> def, Env env) implements Closure {
 
     public MesoValue apply(final MesoValue arg) {
         return new Parser(def).parse(env.extend("DOT", arg));
     }
 
     public String toString() {
-        return def.toString() + " " + env.toString();
+        return defString() + " " + env.toString();
+    }
+
+    private String defString() {
+        String out = "[";
+        for (String word : def) {
+            out += word + (!word.equals("\'") ? " " : "");
+        }
+        return out;
     }
 }
 
@@ -298,6 +314,7 @@ record Operator(Operation op) implements Closure {
 
     /**
      * Construct an operator closure from a String naming the operator
+     *
      * @param s the String
      * @throws IllegalArgumentException if the String does not name an operator
      */
@@ -326,8 +343,8 @@ record Operator(Operation op) implements Closure {
 }
 
 // UNTESTED; possible won't be used
-record JavaClosure(Function<MesoValue, MesoValue> func, Scope env) implements Closure {
-    public JavaClosure(BiFunction<MesoValue, MesoValue, MesoValue> biFunc, Scope env) {
+record JavaClosure(Function<MesoValue, MesoValue> func, Env env) implements Closure {
+    public JavaClosure(BiFunction<MesoValue, MesoValue, MesoValue> biFunc, Env env) {
         this(
                 v1 -> new JavaClosure(v2 -> biFunc.apply(v1, v2), env),
                 env);
@@ -338,28 +355,32 @@ record JavaClosure(Function<MesoValue, MesoValue> func, Scope env) implements Cl
     }
 }
 
-record Scope(Scope outer, MesoName key, MesoValue value) {
+/**
+ * A record describing the name bindings that are in
+ * scope from a given location in the source code
+ */
+record Env(Env outer, MesoName key, MesoValue value) implements MesoValue {
 
-    public static final Scope defaultScope = new Scope(
+    public static final Env defaultScope = new Env(
             null, "T", MesoBool.T)
             .extend("F", MesoBool.F)
             .extend(".", NoApply.NO_APPLY);
-    public Scope(final Scope outer, final String k, final MesoValue value) {
+    public Env(final Env outer, final String k, final MesoValue value) {
         this(outer, new MesoName(k), value);
     }
 
-    public Scope extend(final MesoValue key, final MesoValue value) {
-        return new Scope(this, ((MesoName) key), value);
+    public Env extend(final MesoValue key, final MesoValue value) {
+        return new Env(this, ((MesoName) key), value);
     }
 
-    public Scope extend(final String key, final MesoValue value) {
-        return new Scope(this, new MesoName(key), value);
+    public Env extend(final String key, final MesoValue value) {
+        return new Env(this, new MesoName(key), value);
     }
 
     // UNTESTED
-    public Scope extend(final Scope other) {
-        Scope rVal = this;
-        Scope current = other;
+    public Env extend(final Env other) {
+        Env rVal = this;
+        Env current = other;
         while (current.outer != null) {
             rVal = rVal.extend(current.key, current.value);
             current = current.outer;
@@ -383,7 +404,7 @@ record Scope(Scope outer, MesoName key, MesoValue value) {
 
     public String toString() {
         String out = "(function, env: {";
-        Scope current = this;
+        Env current = this;
         while (current.outer != null && !current.equals(defaultScope)) {
             out += current.key + " == " + current.value + "; ";
             current = current.outer;
