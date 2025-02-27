@@ -271,7 +271,7 @@ record MesoClosure(List<String> def, Env env) implements Closure {
     }
 
     public String toString() {
-        return defString() + " " + env.toString();
+        return defString()/*"+  (function, env: " + env.toString() + ")"*/;
     }
 
     private String defString() {
@@ -279,7 +279,7 @@ record MesoClosure(List<String> def, Env env) implements Closure {
         for (String word : def) {
             out += word + (!word.equals("\'") ? " " : "");
         }
-        return out;
+        return out + "]";
     }
 }
 
@@ -403,12 +403,12 @@ record Env(Env outer, MesoName key, MesoValue value) implements MesoValue {
     }
 
     public String toString() {
-        String out = "(function, env: {";
+        String out = "{";
         Env current = this;
         while (current.outer != null && !current.equals(defaultScope)) {
-            out += current.key + " == " + current.value + "; ";
+            out += current.key + " : " + current.value + "; ";
             current = current.outer;
         }
-        return out + "})";
+        return out + "}";
     }
 }
