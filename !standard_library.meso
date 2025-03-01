@@ -40,7 +40,7 @@ EXPORT
 
 LET 'FUN
     [LET 'arg DOT [LET 'body DOT
-
+        [LET arg DOT body]
     ]]
 
 LET 'DELTA
