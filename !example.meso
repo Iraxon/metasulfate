@@ -31,4 +31,4 @@ DIFF
 
 (This evaluates to zero.)
 
-(The indentation is for readability only. DELTA LET 'add_three [SUM DOT 3] SUM add_three 7 4 14 does exactly the same thing.)
+(The indentation is for readability only. DIFF LET 'add_three [SUM DOT 3] SUM add_three 7 4 14 does exactly the same thing.)
