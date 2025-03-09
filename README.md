@@ -1,6 +1,6 @@
 # Metasulfate
 
-Metasulfate is a purely functional, expression-oriented, programming language.
+Metasulfate is a purely functional expression-oriented programming language.
 
 ## Using Metasulfate
 
