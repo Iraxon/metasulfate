@@ -1188,3 +1188,281 @@ public class Main {
          */
     }
 }
+
+interface MesoValue {
+    default boolean isApplicable() {
+        return false;
+    }
+
+    default MesoExpr apply(MesoExpr arg) {
+        throw new IllegalArgumentException("Attmpted to apply non function:\n" + this + "\nto:\n" + arg);
+    }
+}
+
+enum MesoBool implements MesoValue {
+    T,
+    F;
+}
+
+enum NoApply implements MesoValue {
+    NO_APPLY;
+}
+
+enum ListStop implements MesoValue {
+    LIST_STOP;
+}
+
+record MesoInt(long v) implements MesoValue {
+
+    /**
+     * Applies a LongBinaryOperator to the values of two
+     * MesoInts and makes a new MesoInt from the result
+     *
+     * @param op LongBinaryOperator to apply
+     * @param x  First arg
+     * @param y  Second arg
+     * @return The new MesoInt representing the result
+     */
+    public static MesoInt op(final LongBinaryOperator op, final MesoValue x, final MesoValue y) {
+        System.out.println("Performing int operation " + op + " on:\n" + x + "\nand:\n" + y);
+        return new MesoInt(op.applyAsLong(((MesoInt) x).v, ((MesoInt) y).v));
+    }
+
+    public String toString() {
+        return Long.toString(v) + " (int)";
+    }
+}
+
+record MesoName(String n) implements MesoValue {
+    public String toString() {
+        return "\'" + n;
+    }
+}
+
+record MesoList(List<MesoValue> list) implements MesoValue {
+
+    public static MesoValue op(BiFunction<List<MesoValue>, List<MesoValue>, List<MesoValue>> o, MesoValue arg1,
+            MesoValue arg2) {
+        return new MesoList(o.apply(((MesoList) arg1).list, ((MesoList) arg2).list));
+    }
+
+    public MesoList reverse() {
+        List<MesoValue> l = new ArrayList<>(list);
+        Collections.reverse(l);
+        return new MesoList(l);
+    }
+
+    public String toString() {
+        String out = "{" + list.stream().map(x -> x.toString() + " ").reduce("", (x, y) -> x + y);
+        return out.substring(0, out.length() - 1) + "}";
+    }
+}
+
+interface Quotation extends MesoValue {
+    public MesoValue eval(Env scope);
+}
+
+interface Closure extends MesoValue {
+    public MesoValue apply(MesoValue arg);
+}
+
+record MesoClosure(List<String> def, Env env) implements Closure, Quotation {
+
+    public MesoValue apply(final MesoValue arg) {
+        return new Parser(def).parse(env.extend("DOT", arg).extend("REC", this));
+    }
+
+    public MesoValue eval(Env scope) {
+        return new Parser(def).parse(scope);
+    }
+
+    public String toString() {
+        return defString() + "  (function, env: " + env.shortString(1) + ")";
+    }
+
+    private String defString() {
+        String out = "[";
+        for (final String word : def) {
+            out += word + (!word.equals("\'") ? " " : "");
+        }
+        return out + "]";
+    }
+}
+
+/**
+ * Provides the built-in operations that Metasulfate supports
+ */
+enum Operation {
+    SUM(
+            (x, y) -> x + y,
+            (x, y) -> {
+                List<MesoValue> rV = new ArrayList<>(x);
+                rV.addAll(y);
+                return rV;
+            },
+            null),
+    DIFF((x, y) -> x - y, null, null),
+
+    PROD((x, y) -> x * y, null, null),
+    QUO((x, y) -> x / y, null, null),
+    MOD((x, y) -> x % y, null, null),
+
+    POW((x, y) -> (long) (Math.pow(x, y)), null, null),
+
+    FOLD(null, null, (l, f) -> l.stream().reduce((x, y) -> ((Closure) f.apply(x)).apply(y)).get());
+
+    public final LongBinaryOperator longFunc;
+    public final BiFunction<List<MesoValue>, List<MesoValue>, List<MesoValue>> listFunc;
+    public final BiFunction<List<MesoValue>, Closure, MesoValue> fold;
+
+    private Operation(final LongBinaryOperator longFunc,
+            final BiFunction<List<MesoValue>, List<MesoValue>, List<MesoValue>> listFunc,
+            final BiFunction<List<MesoValue>, Closure, MesoValue> fold) {
+        this.longFunc = longFunc;
+        this.listFunc = listFunc;
+        this.fold = fold;
+    }
+
+    /**
+     * Set of String reps of the operations, for use in checking
+     * if a String represents one of the operations
+     */
+    public static final Set<String> Operations = new HashSet<String>(
+            Arrays.stream(values()).map((n) -> (n.name())).toList());
+}
+
+record Operator(Operation op) implements Closure {
+
+    /**
+     * Construct an operator closure from a String naming the operator
+     *
+     * @param s the String
+     * @throws IllegalArgumentException if the String does not name an operator
+     */
+    public Operator(final String s) throws IllegalArgumentException {
+        this(Operation.valueOf(s));
+    }
+
+    public StageTwoOperator apply(final MesoValue arg1) {
+        return new StageTwoOperator(op, arg1);
+    }
+
+    /**
+     * Due to the curried nature of Metasulfate functions,
+     * binary operators are actually two closures; this is the
+     * closure for the inner function
+     */
+    private record StageTwoOperator(Operation op, MesoValue arg1) implements Closure {
+        public MesoValue apply(final MesoValue arg2) {
+            if (arg1 instanceof MesoInt) {
+                return MesoInt.op(op.longFunc, arg1, arg2);
+            }
+            if (arg1 instanceof MesoList) {
+                if (arg2 instanceof MesoList) {
+                    return MesoList.op(op.listFunc, arg1, arg2);
+                }
+            }
+            if (arg1 instanceof Closure && arg2 instanceof MesoList) {
+                return op.fold.apply(((MesoList) arg2).list(), ((Closure) arg1));
+            }
+            throw new IllegalArgumentException(
+                    "Invalid argument set for operation:\n" + op + "\narg1:\n" + arg1 + "\narg2:\n" + arg2);
+        }
+    }
+}
+
+// UNTESTED; possible won't be used
+record JavaClosure(Function<MesoValue, MesoValue> func, Env env) implements Closure {
+    public JavaClosure(final BiFunction<MesoValue, MesoValue, MesoValue> biFunc, final Env env) {
+        this(
+                v1 -> new JavaClosure(v2 -> biFunc.apply(v1, v2), env),
+                env);
+    }
+
+    public MesoValue apply(final MesoValue arg) {
+        return func.apply(arg);
+    }
+}
+
+/**
+ * A record describing the name bindings that are in
+ * scope from a given location in the source code
+ */
+record Env(Env outer, MesoName key, MesoValue value) implements MesoValue {
+
+    public static final Env defaultScope = new Env(
+            null, "T", MesoBool.T)
+            .extend("F", MesoBool.F)
+            .extend(".", NoApply.NO_APPLY);
+    public Env(final Env outer, final String k, final MesoValue value) {
+        this(outer, new MesoName(k), value);
+    }
+
+    public Env extend(final MesoValue key, final MesoValue value) {
+        return new Env(this, ((MesoName) key), value);
+    }
+
+    public Env extend(final String key, final MesoValue value) {
+        return new Env(this, new MesoName(key), value);
+    }
+
+    // UNTESTED
+    public Env extend(final Env other) {
+        Env rVal = this;
+        Env current = other;
+        while (current.outer != null) {
+            rVal = rVal.extend(current.key, current.value);
+            current = current.outer;
+        }
+        return rVal;
+    }
+
+    /**
+     * Checks a name in the current Env and all
+     * outer Envs and provides the matching value
+     *
+     * @param n a name, which must be a MesoValue and should be a MesoName
+     * @return the value bound to the provided name in this Env
+     * @throws NoSuchElementException if the name is not bound
+     */
+    public MesoValue get(final MesoValue n) throws NoSuchElementException {
+        Env current = this;
+        while (true) {
+            if (n.equals(current.key)) {
+                return current.value;
+            } else if (current.outer != null) {
+                current = current.outer;
+            } else {
+                break;
+            }
+        }
+        throw new NoSuchElementException("Undefined name:\n" + n + "\nin:\n" + this);
+    }
+
+    public String toString() {
+        return shortString(1);
+    }
+
+    public String shortString() {
+        return shortString(10);
+    }
+
+    /**
+     * Returns a String representation of a fixed number of the most recent
+     * entries in this Env
+     *
+     * @param count Number of entries to include; negative values allow as many
+     *              entries as the Env holds
+     * @return String representation of this Env including only that many entries
+     */
+    public String shortString(int count) {
+        String out = "{";
+        Env current = this;
+        while (current.outer != null && count != 0) {
+            out += current.key + " : " + current.value + "; ";
+            current = current.outer;
+            count--;
+        }
+        return out + "}";
+    }
+}

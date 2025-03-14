@@ -12,19 +12,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.LongBinaryOperator;
 
 public class Metasulfate {
     public static void main(final String[] args) {
         System.out.println("\n\n\n---\n" +
-                evalFile("!standard_library.meso") + "\n---\n\n\n");
+                parse(lex("PROD 1 SUM 1 2")).render("") + "\n---\n\n\n");
+        // System.out.println("\n\n\n---\n" +
+        // evalFile("!standard_library.meso") + "\n---\n\n\n");
         /*
          * TEST PROGRAMS:
          * LAMBDA_DOT [PRODUCT DOT 2] LET 'x 3 LET 'y 2 SUM x y
@@ -35,11 +33,11 @@ public class Metasulfate {
          */
     }
 
-    public static MesoValue eval(final String src) {
-        return parse(Lexer.lex(src));
+    public static ValueExpression eval(final String src) {
+        return parse(lex(src)).eval();
     }
 
-    public static MesoValue evalFile(final String path) {
+    public static ValueExpression evalFile(final String path) {
         String src = "";
         final Scanner s;
         try {
@@ -54,7 +52,11 @@ public class Metasulfate {
         return eval(src);
     }
 
-    private static MesoValue parse(final List<String> src) {
+    private static List<String> lex(final String src) {
+        return Lexer.lex(src);
+    }
+
+    private static MesoExpr parse(final List<String> src) {
         return new Parser(src).parse(Env.defaultScope);
     }
 }
@@ -119,7 +121,7 @@ class Lexer {
                     acc += current;
                 }
             } else if (commentNestingDepth < 0) {
-                throw new IllegalStateException("Comment nesting depth below zero");
+                throw new IllegalStateException("Unmatched closing paren on comment");
             }
             if (current == ')') {
                 commentNestingDepth--;
@@ -137,50 +139,34 @@ class Parser {
         this.cursor = 0;
     }
 
-    public MesoValue parse(final Env scope) {
-        final MesoValue rVal = _parse(scope);
+    public MesoExpr parse(final Env scope) {
+        final MesoExpr rVal = _parse(scope);
         if (hasNext()) {
-            throw new IllegalArgumentException("Trailing data in program");
+            List<String> trailing = new ArrayList<>();
+            while (hasNext()) {
+                trailing.add(grab());
+            }
+            throw new IllegalArgumentException(
+                    "Trailing data in program" + trailing.stream().reduce("", (x, y) -> x + " " + y + " "));
         }
         return rVal;
     }
 
-    private MesoValue _parse(final Env scope) {
-        final String t = grab();
+    public MesoExpr _parse(final Env scope) {
+        final String token = grab();
+        if (token.equals(".")) {
+            return NoApply.NO_APPLY;
+        }
         try {
-            return new MesoInt(Long.valueOf(t));
-        } catch (final NumberFormatException e) {
+            return new MesoInt(token);
+        } catch (NumberFormatException e) {
         }
-        switch (t) {
-            case "[":
-                return new MesoClosure(grabDelimitedRange(t, "]"), scope);
-            case "LET":
-                final MesoValue name = _parse(scope);
-                final MesoValue value = _parse(scope);
-                return _parse(scope.extend(name, value));
-            case "\'":
-                return new MesoName(grab());
-            case "ENV":
-                return scope;
-            case "EXPORT":
-                return _parse(scope);
-            default:
-                MesoValue rVal;
-                MesoValue arg;
-
-                try {
-                    rVal = new Operator(t);
-                } catch (IllegalArgumentException e) {
-                    rVal = scope.get(t);
-                }
-
-                while (rVal instanceof Closure && (arg = _parse(scope)) != NoApply.NO_APPLY) {
-                    System.out.println("Applying: " + rVal);
-                    rVal = ((Closure) rVal).apply(arg);
-                    System.out.println("rVal is now: " + rVal);
-                }
-                return rVal;
+        if (true) {
+            return new CallExpression(new CallExpression(new NameExpression(token), _parse(scope)), _parse(scope));
         }
+        // MesoExpr rVal = new MesoName(token);
+        // return rVal;
+        return null;
     }
 
     private boolean hasNext() {
@@ -193,20 +179,20 @@ class Parser {
         return t;
     }
 
-    /*
+    /**
      * Continuously grabs input items until reaching a terminator;
-     * the terminator is consumed but not returned;
-     * if the initiator is not null, then
-     * count will be kept to allow for nesting
+     * the terminator is consumed but not returned; count will be
+     * kept to allow for nesting
+     *
+     * @param initiator  The left delimeter
+     * @param terminator The right delimiter
      */
     private List<String> grabDelimitedRange(final String initiator, final String terminator) {
         int nestingLevel = 1; // There was a starting opening brace
         final List<String> rval = new ArrayList<>();
         String current;
         while (true) {
-            if (true) {
-                System.out.print("While looking for " + terminator + ", ");
-            }
+            System.out.print("While looking for " + terminator + ", ");
             current = grab();
             if (current.equals(initiator)) {
                 nestingLevel++;
@@ -221,137 +207,145 @@ class Parser {
     }
 }
 
-interface MesoValue {
+interface MesoExpr {
+    default ValueExpression eval() {
+        return (ValueExpression) this;
+    }
+
+    default boolean isFunction() {
+        return false;
+    }
+
+    /**
+     * Produces a nice String representation of the expression tree
+     *
+     * @param pre An amalgamation of spaces and vertical lines that should
+     *            go before each line of the output after the first, if any; this
+     *            controls nesting
+     * @return A human-readable String representation of the tree
+     */
+    default String render(String pre) {
+        return this.toString();
+    }
 }
 
-enum MesoBool implements MesoValue {
+interface ValueExpression extends MesoExpr {
+    default ValueExpression eval(Env scope) {
+        return this;
+    }
+
+    default int closureNumber() {
+        return 0;
+    }
+}
+
+record CallExpression(MesoExpr left, MesoExpr right) implements MesoExpr {
+
+    // public CallExpression(MesoExpr left, MesoExpr right) {
+    // this(left, right, left.closureNumber());
+    // }
+
+    // public boolean isApplicable() {
+    // return closureNumber > 0;
+    // }
+
+    public ValueExpression eval(Env scope) {
+        return MesoBool.T;
+    }
+
+    public ValueExpression apply(MesoExpr arg) {
+        throw new RuntimeException();
+    }
+
+    public String render(String pre) {
+        // Python to translate from:
+        // LEFT_ELEMENT = (
+        // self.left.render(pipes + "║ ")
+        // if isinstance(self.left, TournTree)
+        // else "═ " + str(self.left)
+        // )
+        // RIGHT_ELEMENT = (
+        // self.right.render(pipes + " ")
+        // if isinstance(self.right, TournTree)
+        // else "═ " + str(self.right)
+        // )
+        // return f"{'═╗' if pipes != '' else
+        // ''}\n{pipes}╠{LEFT_ELEMENT}\n{pipes}╚{RIGHT_ELEMENT}"
+        // final String header = (!pre.equals("")) ? "═╗" : "";
+        // final String l = this.left.render(pre + "║ ");
+        // final String r = this.left.render(pre + " ");
+        // return header + "@\n"
+        // + pre + "╠" + l + "\n"
+        // + pre + "╚" + r + "\n";
+        return (pre.equals("")? "" : "═╗") + "\n"
+                + pre + "╠" + this.left.render(pre + "║ ") + "\n"
+                + pre + "╚" + this.right.render(pre + "  ");
+    }
+}
+
+record NameExpression(MesoName name) implements MesoExpr {
+    public NameExpression(String k) {
+        this(new MesoName(k));
+    }
+
+    public ValueExpression eval(Env scope) {
+        return scope.get(this.name);
+    }
+
+    public int closureNumber() {
+        return this.eval(null).closureNumber();
+    }
+
+    public String toString() {
+        return this.name.n();
+    }
+}
+
+interface MesoType {
+}
+
+enum MesoNull implements ValueExpression {
+    NULL;
+}
+
+enum NoApply implements ValueExpression {
+    NO_APPLY;
+}
+
+enum ListStop implements ValueExpression {
+    LIST_STOP;
+}
+
+enum MesoBool implements ValueExpression {
     T,
-    F
+    F;
 }
 
-enum NoApply implements MesoValue {
-    NO_APPLY
-}
-
-record MesoInt(long v) implements MesoValue {
+record MesoInt(long val) implements ValueExpression {
 
     /**
-     * Applies a LongBinaryOperator to the values of two
-     * MesoInts and makes a new MesoInt from the result
+     * Construct a MesoInt from a String
      *
-     * @param op LongBinaryOperator to apply
-     * @param x  First arg
-     * @param y  Second arg
-     * @return The new MesoInt representing the result
+     * @param s String representation of the value to box
+     * @throws NumberFormatException When passed a String that cannot be parsed into
+     *                               a number
      */
-    public static MesoInt op(final LongBinaryOperator op, final MesoValue x, final MesoValue y) {
-        System.out.println("Performing int operation " + op + " on:\n" + x + "\nand:\n" + y);
-        return new MesoInt(op.applyAsLong(((MesoInt) x).v, ((MesoInt) y).v));
+    public MesoInt(String s) throws NumberFormatException {
+        this(Long.valueOf(s));
     }
 
     public String toString() {
-        return Long.toString(v) + " (int)";
+        return Long.toString(val);
     }
 }
 
-record MesoName(String n) implements MesoValue {
+record MesoName(String n) implements ValueExpression {
+}
+
+record MesoList(List<ValueExpression> list) implements ValueExpression {
     public String toString() {
-        return "\'" + n;
-    }
-}
-
-interface Closure extends MesoValue {
-    public MesoValue apply(MesoValue arg);
-}
-
-record MesoClosure(List<String> def, Env env) implements Closure {
-
-    public MesoValue apply(final MesoValue arg) {
-        return new Parser(def).parse(env.extend("DOT", arg));
-    }
-
-    public String toString() {
-        return defString()/*"+  (function, env: " + env.toString() + ")"*/;
-    }
-
-    private String defString() {
-        String out = "[";
-        for (String word : def) {
-            out += word + (!word.equals("\'") ? " " : "");
-        }
-        return out + "]";
-    }
-}
-
-/**
- * Provides the built-in operations that Metasulfate supports
- */
-enum Operation {
-    SUM((x, y) -> x + y),
-    DIFF((x, y) -> x - y),
-
-    PROD((x, y) -> x * y),
-    QUO((x, y) -> x / y),
-    MOD((x, y) -> x % y),
-
-    POW((x, y) -> (long) (Math.pow(x, y)));
-
-    public final LongBinaryOperator longFunc;
-
-    private Operation(LongBinaryOperator longFunc) {
-        this.longFunc = longFunc;
-    }
-
-    /**
-     * Set of String reps of the operations, for use in checking
-     * if a String represents one of the operations
-     */
-    public static final Set<String> Operations = new HashSet<String>(
-            Arrays.stream(values()).map((n) -> (n.name())).toList());
-}
-
-record Operator(Operation op) implements Closure {
-
-    /**
-     * Construct an operator closure from a String naming the operator
-     *
-     * @param s the String
-     * @throws IllegalArgumentException if the String does not name an operator
-     */
-    public Operator(String s) throws IllegalArgumentException {
-        this(Operation.valueOf(s));
-    }
-
-    public StageTwoOperator apply(final MesoValue arg1) {
-        return new StageTwoOperator(op, arg1);
-    }
-
-    /**
-     * Due to the curried nature of Metasulfate functions,
-     * binary operators are actually two closures; this is the
-     * closure for the inner function
-     */
-    record StageTwoOperator(Operation op, MesoValue arg1) implements Closure {
-        public MesoValue apply(final MesoValue arg2) {
-            if (arg1 instanceof MesoInt) {
-                return MesoInt.op(op.longFunc, arg1, arg2);
-            }
-            throw new IllegalArgumentException(
-                    "Invalid argument set for operation:\n" + op + "\narg1:\n" + arg1 + "\narg2:\n" + arg2);
-        }
-    }
-}
-
-// UNTESTED; possible won't be used
-record JavaClosure(Function<MesoValue, MesoValue> func, Env env) implements Closure {
-    public JavaClosure(BiFunction<MesoValue, MesoValue, MesoValue> biFunc, Env env) {
-        this(
-                v1 -> new JavaClosure(v2 -> biFunc.apply(v1, v2), env),
-                env);
-    }
-
-    public MesoValue apply(final MesoValue arg) {
-        return func.apply(arg);
+        String out = "{" + list.stream().map(x -> x.toString() + " ").reduce("", (x, y) -> x + y);
+        return out.substring(0, out.length() - 1) + "}";
     }
 }
 
@@ -359,21 +353,21 @@ record JavaClosure(Function<MesoValue, MesoValue> func, Env env) implements Clos
  * A record describing the name bindings that are in
  * scope from a given location in the source code
  */
-record Env(Env outer, MesoName key, MesoValue value) implements MesoValue {
+record Env(Env outer, MesoName key, ValueExpression value) {
 
     public static final Env defaultScope = new Env(
             null, "T", MesoBool.T)
             .extend("F", MesoBool.F)
             .extend(".", NoApply.NO_APPLY);
-    public Env(final Env outer, final String k, final MesoValue value) {
+    public Env(final Env outer, final String k, final ValueExpression value) {
         this(outer, new MesoName(k), value);
     }
 
-    public Env extend(final MesoValue key, final MesoValue value) {
+    public Env extend(final MesoName key, final ValueExpression value) {
         return new Env(this, ((MesoName) key), value);
     }
 
-    public Env extend(final String key, final MesoValue value) {
+    public Env extend(final String key, final ValueExpression value) {
         return new Env(this, new MesoName(key), value);
     }
 
@@ -388,26 +382,52 @@ record Env(Env outer, MesoName key, MesoValue value) implements MesoValue {
         return rVal;
     }
 
-    public MesoValue get(final MesoValue k) {
-        if (k.equals(key)) {
-            return value;
+    /**
+     * Checks a name in the current Env and all
+     * outer Envs and provides the matching value
+     *
+     * @param n a name, which must be a ValueExpression and should be a
+     *          MesoName
+     * @return the value bound to the provided name in this Env
+     * @throws NoSuchElementException if the name is not bound
+     */
+    public ValueExpression get(final MesoName n) throws NoSuchElementException {
+        Env current = this;
+        while (true) {
+            if (n.equals(current.key)) {
+                return current.value;
+            } else if (current.outer != null) {
+                current = current.outer;
+            } else {
+                break;
+            }
         }
-        if (outer != null) {
-            return outer.get(k);
-        }
-        throw new NoSuchElementException("Undefined name:\n" + k);
-    }
-
-    public MesoValue get(final String s) {
-        return get(new MesoName(s));
+        throw new NoSuchElementException("Undefined name:\n" + n + "\nin:\n" + this);
     }
 
     public String toString() {
+        return shortString(1);
+    }
+
+    public String shortString() {
+        return shortString(10);
+    }
+
+    /**
+     * Returns a String representation of a fixed number of the most recent
+     * entries in this Env
+     *
+     * @param count Number of entries to include; negative values allow as many
+     *              entries as the Env holds
+     * @return String representation of this Env including only that many entries
+     */
+    public String shortString(int count) {
         String out = "{";
         Env current = this;
-        while (current.outer != null && !current.equals(defaultScope)) {
+        while (current.outer != null && count != 0) {
             out += current.key + " : " + current.value + "; ";
             current = current.outer;
+            count--;
         }
         return out + "}";
     }

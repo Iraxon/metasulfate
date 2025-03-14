@@ -15,6 +15,7 @@ of your own names should be lowercase.)
     - DOT   :: Refers to the argument (use inside function definitions)
     - EQUAL :: Consumes two arguments; evaluates to T or F depending on their equality
     - F     :: Boolean false
+    - FOLD  :: Left fold/reduce
     - (INST):: Checks if first argument is an instance of the second argument
     - (INT) :: Integer numeric type; equivalent to Java long type
     - LET   :: Consumes three arguments; the first should be a name; the second should be a value;
@@ -24,7 +25,8 @@ of your own names should be lowercase.)
     - (OR)  :: Logical or
     - PROD  :: Numeric multiplication
     - POW   :: Numeric exponentiation (first arg ^ second arg)
-    - QUO   :: Numerc division
+    - QUO   :: Numerc division, list concatenation
+    - REC   :: Refers to the function itself (when used inside function definitions)
     - SUM   :: Numeric addition
     - T     :: Boolean true
     - [ ]   :: Literal function/quotation delimeters; literal functions will not be applied to following terms by default
@@ -38,19 +40,30 @@ the language to have.)
 
 EXPORT
 
+LET 'UNARY_FUN
+    [LET 'arg_name DOT [LET 'body DOT.
+        [LET arg_name DOT UNQUOTE body]
+    ]]
+
 LET 'FUN
-    [LET 'arg DOT [LET 'body DOT
-        [LET arg DOT body]
+    [LET 'args DOT [LET 'body DOT.
+        FOLD
+            [LET 'acc DOT [LET 'new DOT
+                UNARY_FUN new acc.
+            ]]
+            SUM {'body} REVERSE args
+        .
     ]]
 
 LET 'DELTA
-    [LET 'x DOT [LET 'y DOT
-        DIFF y x
-    ]]
+    FUN {'x 'y} [DIFF y x].
 
+DELTA 3 5
+
+(
 LET 'POLAR
-    [LET 'x DOT [ LET 'y DOT
-
-    ]]
-
-ENV
+    FUN {'x 'y} [{
+        PYTH x y
+        ATAN2 y x
+    }]
+)
