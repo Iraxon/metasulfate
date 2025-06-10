@@ -9,7 +9,7 @@ into your own IDE and run it. Changing this will be first priority once language
 
 ## Example Program
 
-See [`!example.meso`](https://github.com/Iraxon/metasulfate/blob/main/!example.meso).
+See [`!example.meso`](https://github.com/Iraxon/metasulfate/blob/main/src/main/resources/metasulfate/!example.meso).
 
 ## License
 
