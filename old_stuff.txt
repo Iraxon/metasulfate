@@ -1262,33 +1262,6 @@ interface Quotation extends MesoValue {
     public MesoValue eval(Env scope);
 }
 
-interface Closure extends MesoValue {
-    public MesoValue apply(MesoValue arg);
-}
-
-record MesoClosure(List<String> def, Env env) implements Closure, Quotation {
-
-    public MesoValue apply(final MesoValue arg) {
-        return new Parser(def).parse(env.extend("DOT", arg).extend("REC", this));
-    }
-
-    public MesoValue eval(Env scope) {
-        return new Parser(def).parse(scope);
-    }
-
-    public String toString() {
-        return defString() + "  (function, env: " + env.shortString(1) + ")";
-    }
-
-    private String defString() {
-        String out = "[";
-        for (final String word : def) {
-            out += word + (!word.equals("\'") ? " " : "");
-        }
-        return out + "]";
-    }
-}
-
 /**
  * Provides the built-in operations that Metasulfate supports
  */
