@@ -38,6 +38,14 @@ of your own names should be lowercase.)
 This file serves to provide all the others a programmer would expect
 the language to have.)
 
+['DELTA x y] -> [DIFF y x]
+
+(
+WHERE 'FUN = [[args body] -> [args -> body]]
+WHERE 'DELTA = [[x y] -> [DIFF y x]]
+)
+
+(
 EXPORT
 
 LET 'UNARY_FUN
@@ -58,12 +66,11 @@ LET 'FUN
 LET 'DELTA
     FUN {'x 'y} [DIFF y x].
 
-DELTA 3 5
-
 (
 LET 'POLAR
     FUN {'x 'y} [{
         PYTH x y
         ATAN2 y x
     }]
+)
 )

@@ -1,0 +1,5 @@
+[['fac 0] -> [1]
+[['fac n] -> [prod n [fac [diff n 1]]]
+
+fac 6
+]]
