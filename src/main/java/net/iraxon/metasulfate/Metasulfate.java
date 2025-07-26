@@ -1,5 +1,10 @@
 package net.iraxon.metasulfate;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.UncheckedIOException;
+import java.nio.file.Paths;
+
 /**
  * Copyright Iraxon 2025
  *
@@ -10,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Scanner;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -19,25 +25,23 @@ public class Metasulfate {
 
     public static void main(final String[] args) {
         System.out.println("\n\n\n---\n" +
-                eval("[[if 'x eq 'y] -> F [[if 'x eq 'x] -> T [if 5 eq 4]]]") + "\n---\n\n\n");
-        // System.out.println("\n\n\n---\n" +
-        // evalFile("!standard_library.meso") + "\n---\n\n\n");
+                evalFile("src/main/resources/metasulfate/example.meso") + "\n---\n\n\n");
     }
 
-    // public static MesoExpr evalFile(final String path) {
-    // String src = "";
-    // final Scanner s;
-    // try {
-    // s = new Scanner(new File(path));
-    // } catch (final FileNotFoundException e) {
-    // throw new UncheckedIOException(e);
-    // }
-    // while (s.hasNextLine()) {
-    // src += s.nextLine() + " ";
-    // }
-    // s.close();
-    // return eval(src);
-    // }
+    public static AST evalFile(final String path) {
+    String src = "";
+    final Scanner s;
+    try {
+        s = new Scanner(new File(path));
+    } catch (final FileNotFoundException e) {
+        throw new UncheckedIOException(e);
+    }
+    while (s.hasNextLine()) {
+        src += s.nextLine() + " ";
+    }
+    s.close();
+    return eval(src);
+    }
 
     public static AST preEval(final String src) {
         return parse(lex(src));
