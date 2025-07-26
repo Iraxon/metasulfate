@@ -7,7 +7,7 @@ lines.)
 [
     [if 'x eq 'y] -> F [
     [if 'x eq 'x] -> T [
-        if r eq r
+        if 3 eq 4
     ]]
 ]
 
