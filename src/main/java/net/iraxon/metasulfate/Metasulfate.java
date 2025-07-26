@@ -19,7 +19,7 @@ public class Metasulfate {
 
     public static void main(final String[] args) {
         System.out.println("\n\n\n---\n" +
-                eval("[[f 1 'x] -> [x] [f 1 3]]") + "\n---\n\n\n");
+                eval("[[if 'x eq 'y] -> F [[if 'x eq 'x] -> T [if 5 eq 4]]]") + "\n---\n\n\n");
         // System.out.println("\n\n\n---\n" +
         // evalFile("!standard_library.meso") + "\n---\n\n\n");
     }
@@ -150,6 +150,7 @@ public class Metasulfate {
 
         private AST parseValue() {
             String token = grab();
+            // System.out.println("Parsing value: " + token);
             return switch (token) {
                 case "[" -> parseList();
                 case "]" -> ASTSingletons.END_OF_LIST;
@@ -160,6 +161,7 @@ public class Metasulfate {
 
         private AST parseList() {
             final ArrayList<AST> nodes = new ArrayList<>();
+            // System.out.println("Parsing list");
             AST current;
             while (hasNext() && ((current = parseValue()) != ASTSingletons.END_OF_LIST)) {
                 if (current != null) {
@@ -189,34 +191,6 @@ public class Metasulfate {
                 return src.get(cursor + n);
             } catch (IndexOutOfBoundsException e) {
                 return null;
-            }
-        }
-
-        /**
-         * Continuously grabs input items until reaching a terminator;
-         * the terminator is consumed but not returned; count will be
-         * kept to allow for nesting
-         *
-         * @param initiator  The left delimeter
-         * @param terminator The right delimiter
-         */
-        @SuppressWarnings("unused")
-        private List<String> grabDelimitedRange(final String initiator, final String terminator) {
-            int nestingLevel = 1; // There was a starting opening brace
-            final List<String> rval = new ArrayList<>();
-            String current;
-            while (true) {
-                System.out.print("While looking for " + terminator + ", ");
-                current = grab();
-                if (current.equals(initiator)) {
-                    nestingLevel++;
-                } else if (current.equals(terminator)) {
-                    nestingLevel--;
-                }
-                if (nestingLevel < 1) {
-                    return rval;
-                }
-                rval.add(current);
             }
         }
     }

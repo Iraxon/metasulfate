@@ -1773,3 +1773,141 @@ record MesoClosure<R extends MesoValue<R>>(Pattern p, MesoExpr<R> body) implemen
         return body.eval(matchScope);
     }
 }
+
+/**
+ * @deprecated
+ */
+@Deprecated
+record ValueNode(Object value) implements AST {
+    @Override
+    public Pattern asPattern() {
+        return switch (value) {
+            case OldName n -> null;
+            default -> new LiteralPattern(this);
+        };
+    }
+
+    @Override
+    public String toString() {
+        return value.toString();
+    }
+}
+
+/**
+ * @deprecated
+ */
+@Deprecated
+record OldName(String name) implements CharSequence {
+
+    public static OldName of(String s) {
+        return new OldName(s);
+    }
+
+    @Override
+    public char charAt(int index) {
+        return name.charAt(index);
+    }
+
+    @Override
+    public int length() {
+        return name.length();
+    }
+
+    @Override
+    public CharSequence subSequence(int start, int end) {
+        return name.subSequence(start, end);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof OldName otherName && otherName.name.equals(this.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * (name != null ? name.hashCode() : 0) + getClass().hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return name;
+    }
+}
+
+/**
+         * Continuously grabs input items until reaching a terminator;
+         * the terminator is consumed but not returned; count will be
+         * kept to allow for nesting
+         *
+         * @param initiator  The left delimeter
+         * @param terminator The right delimiter
+         */
+        private List<String> grabDelimitedRange(final String initiator, final String terminator) {
+            int nestingLevel = 1; // There was a starting opening brace
+            final List<String> rval = new ArrayList<>();
+            String current;
+            while (true) {
+                System.out.print("While looking for " + terminator + ", ");
+                current = grab();
+                if (current.equals(initiator)) {
+                    nestingLevel++;
+                } else if (current.equals(terminator)) {
+                    nestingLevel--;
+                }
+                if (nestingLevel < 1) {
+                    return rval;
+                }
+                rval.add(current);
+            }
+        }
+
+/**
+ * @deprecated
+ */
+@Deprecated
+record VariableRewriteRule(String name, AST value) implements RewriteRule {
+
+    @Override
+    public AST apply(AST input, RewriteRules env) {
+        if (input instanceof Atom aInput
+                && aInput.name().equals(this.name)) {
+            return value;
+        }
+        return null;
+    }
+
+    @Override
+    public Pattern pattern() {
+        return LiteralPattern.of(name);
+    }
+
+    @Override
+    public String toString() {
+        return name + " == " + value.toString();
+    }
+}
+
+oldRewrite {
+        AST r = input;
+
+        System.out.println("Rewriting " + input + " with " + this.rule);
+
+        // First pass: We try to just apply the rule to the input
+        final AST firstPass = rule.apply(input, this);
+
+        if (firstPass != null) {
+            r = firstPass;
+        }
+
+        // Second pass: We consult higher rules than the current
+        else if (outer != null) {
+            r = outer.rewrite(input);
+        }
+
+        // Third pass: We try to rewrite subterms
+        else if (input instanceof NestedNode n) {
+            r = new NestedNode(n.children().stream().map(this::rewrite).toList());
+        }
+        System.out.println("Yielding: " + r);
+        return r;
+    }

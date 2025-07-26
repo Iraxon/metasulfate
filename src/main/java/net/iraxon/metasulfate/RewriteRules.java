@@ -30,10 +30,10 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
     public List<RewriteRule> asList() {
         ArrayList<RewriteRule> rVal = new ArrayList<>();
         RewriteRules current = this;
-        while (current.outer != null) {
+        do {
             rVal.add(current.rule);
             current = current.outer;
-        }
+        } while (current != null);
         return List.copyOf(rVal);
     }
 
@@ -48,24 +48,26 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
         return asList().size();
     }
 
-    public RewriteRules extend(final RewriteRule pattern) {
-        if (pattern.equals(RewriteRule.EMPTY))
+    public RewriteRules extend(final RewriteRule newRule) {
+        if (newRule.equals(RewriteRule.EMPTY))
             return this;
-        return new RewriteRules(this.equals(EMPTY) ? null : this, pattern);
+        return new RewriteRules(this.equals(EMPTY) ? null : this, newRule);
     }
 
     public RewriteRules extend(final RewriteRules other) {
+        // System.out.println("Extending: (\n" + this + ") with: (\n" + other + ")");
         if (other.equals(EMPTY))
             return this;
         RewriteRules rVal = this;
-        for (RewriteRule pattern : other.asList()) {
-            rVal = rVal.extend(pattern);
+        for (RewriteRule rule : other.asList()) {
+            // System.out.println("Adding rule: " + rule);
+            rVal = rVal.extend(rule);
         }
         return rVal;
     }
 
     /**
-     * Rewrites the input using the first ("lowest") available
+     * Rewrites the input and/or its subexpressions using the first ("lowest") available
      * rewrite rule
      *
      * @param input A term
@@ -73,29 +75,20 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
      *         if none of the rules apply to this term
      */
     public AST rewrite(final AST input) {
-        return switch (rule.apply(input)) {
-            case null -> switch (outer) {
-                case null -> input;
-                default -> outer.rewrite(input);
-            };
-            case AST result -> result;
-        };
-        // RewriteRules current = this;
-        // AST rVal;
-        // while (true) {
-        //     rVal = rule.apply(in);
-        //     if (rVal != null) {
-        //         return rVal;
-        //     } else if (current.outer != null) {
-        //         current = current.outer;
-        //     } else {
-        //         break;
-        //     }
-        // }
-        // return in;
+        AST r = input;
+        if (input instanceof NestedNode n) {
+            r = new NestedNode(n.children().stream().map(this::rewrite).toList());
+        }
+        AST thisApply = rule.apply(r, this);
+        if (thisApply != null) {
+            r = thisApply;
+        } else if (outer != null) {
+            r = outer.rewrite(r);
+        }
+        return r;
     }
 
-    public boolean hasConflictingVariables(RewriteRules other) {
+    public boolean conflictsWith(RewriteRules other) {
         if (this.equals(other)) {
             return false;
         }
@@ -104,14 +97,21 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
 
         for (var rule : thisList) {
             for (var otherRule : otherList) {
-                if (rule instanceof VariableRewriteRule thisVar
-                        && otherRule instanceof VariableRewriteRule otherVar
-                        && (!thisVar.value().equals(otherVar.value()))) {
+                if ((rule.pattern().equals(otherRule.pattern())) && !rule.equals(otherRule)) {
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    @Override
+    public String toString() {
+        if (this.equals(RewriteRules.EMPTY)) {
+            return "\tRewriteRules.EMPTY\n";
+        }
+        return (outer == null ? "" : outer.toString())
+                + "\t" + rule.toString() + "\n";
     }
 
     // public String toString() {

@@ -8,10 +8,18 @@ interface RewriteRule {
 
     /**
      * @param input A term
+     * @param env   The ruleset that is invoking the application of the rule (needed
+     *              for propagating rewriting
+     *              downward)
      * @return the result of applying this rewrite rule to the input or
      *         null if the input does not match this rewrite rule
      */
-    public AST apply(AST input);
+    public AST apply(AST input, RewriteRules env);
+
+    /**
+     * @return A pattern describing what terms match the rewrite rule
+     */
+    public Pattern pattern();
 }
 
 enum SingletonRewriteRules implements RewriteRule {
@@ -28,35 +36,40 @@ enum SingletonRewriteRules implements RewriteRule {
     // new ValueNode(Name.of("rest")),
     // RewriteRules.EMPTY);
 
+    public static final SequencePattern DECLARATION = SequencePattern.of(
+            new VariablePattern("left"),
+            LiteralPattern.of("->"),
+            new VariablePattern("right"),
+            new VariablePattern("rest"));
+
     @Override
-    public AST apply(AST input) {
+    public AST apply(AST input, RewriteRules env) {
         return switch (this) {
             case EMPTY -> null;
-            case REWRITE_RULE_DECLARATION -> applyRuleDeclaration(input);
+            case REWRITE_RULE_DECLARATION -> applyRuleDeclaration(input, env);
         };
     }
 
-    private AST applyRuleDeclaration(AST in) {
+    @Override
+    public Pattern pattern() {
+        return switch (this) {
+            case EMPTY -> SingletonPatterns.EMPTY;
+            case REWRITE_RULE_DECLARATION -> DECLARATION;
+        };
+    }
+
+    private AST applyRuleDeclaration(AST in, RewriteRules env) {
         final List<AST> children;
         if (in instanceof NestedNode nested && (children = nested.children()).size() == 4
                 && children.get(1).equals(Atom.of("->"))) {
+
             final AST left = children.get(0);
             final AST right = children.get(2);
             final AST rest = children.get(3);
 
-            return RewriteRules.of(new FunctionRewriteRule(left.asPattern(), right, RewriteRules.EMPTY)).rewrite(rest);
-        }
-        return null;
-    }
-}
+            final RewriteRules rewriteEnv = env.extend(new FunctionRewriteRule(left.asPattern(), right, env));
 
-record VariableRewriteRule(String name, AST value) implements RewriteRule {
-
-    @Override
-    public AST apply(AST input) {
-        if (input instanceof Atom aInput
-                && aInput.name().equals(this.name)) {
-            return value;
+            return rewriteEnv.rewrite(rest);
         }
         return null;
     }
@@ -65,11 +78,17 @@ record VariableRewriteRule(String name, AST value) implements RewriteRule {
 record FunctionRewriteRule(Pattern pattern, AST expr, RewriteRules env) implements RewriteRule {
 
     @Override
-    public AST apply(AST input) {
-        RewriteRules matchRewriteRules = pattern.match(input);
+    public AST apply(AST input, RewriteRules env) {
+        final RewriteRules matchRewriteRules = pattern.match(input);
+        System.out.println("Term " + input + " tested against " + pattern + " yielding env: (\n" + matchRewriteRules + ")");
         if (matchRewriteRules == null) {
             return null;
         }
-        return env.extend(matchRewriteRules).rewrite(expr);
+        return matchRewriteRules.rewrite(expr);
+    }
+
+    @Override
+    public String toString() {
+        return pattern.toString() + " -> " + expr.toString() + (env.equals(RewriteRules.EMPTY) ? "" : " (\n" + env.toString() + ")");
     }
 }
