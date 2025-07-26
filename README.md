@@ -8,7 +8,7 @@ Metasulfate is still under construction and not yet ready for use.
 
 ## Example Program
 
-See [`!example.meso`](https://github.com/Iraxon/metasulfate/blob/main/src/main/resources/metasulfate/!example.meso).
+See [`example.meso`](https://github.com/Iraxon/metasulfate/blob/main/src/main/resources/metasulfate/example.meso).
 
 ## License
 
