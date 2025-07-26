@@ -12,7 +12,7 @@ lines.)
 ]
 
 (This evaluates to F. If the terms (which may be numbers) are made equal it evaluates to T. T and F are not special values;
-they are simply terms that don't reduce to anything else. Same goes for if and eq.)
+they are simply terms that don't reduce to anything else.)
 
 (The indentation is for readability only. A one-liner of this does exactly the same thing, though it is required that
 most terms be seperated with some sort of whitespace.)
