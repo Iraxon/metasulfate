@@ -3,7 +3,6 @@ package net.iraxon.metasulfate;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.UncheckedIOException;
-import java.nio.file.Paths;
 
 /**
  * Copyright Iraxon 2025
