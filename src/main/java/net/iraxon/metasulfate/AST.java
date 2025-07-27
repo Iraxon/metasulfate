@@ -60,19 +60,6 @@ record NestedNode(List<AST> children) implements AST {
     public String toString() {
         return renderList(children);
     }
-
-    // private static boolean listMatch(List<AST> list, List<Object> pattern) {
-    // if (list.size() != pattern.size()) {
-    // return false;
-    // }
-    // for (int i = 0; i < list.size(); i++) {
-    // if (!(list.get(i).equals(pattern.get(i))
-    // || pattern.get(i).equals("*"))) {
-    // return false;
-    // }
-    // }
-    // return true;
-    // }
 }
 
 record NameNode(String n) implements AST {
