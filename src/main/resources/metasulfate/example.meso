@@ -11,8 +11,8 @@ lines.)
     ]]
 ]
 
-(This evaluates to F. If the terms (which may be numbers) are made equal it evaluates to T. T and F are not special values;
-they are simply terms that don't reduce to anything else.)
+(This evaluates to F. If the terms (which may be numbers) are made equal it evaluates to T. T and F are reserved for boolean usage,
+but there is nothing special about them. The interpreter treats them as atoms like everything else.)
 
 (The indentation is for readability only. A one-liner of this does exactly the same thing, though it is required that
 most terms be seperated with some sort of whitespace.)
