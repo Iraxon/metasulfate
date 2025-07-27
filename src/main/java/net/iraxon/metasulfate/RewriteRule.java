@@ -84,7 +84,7 @@ record FunctionRewriteRule(Pattern pattern, AST expr, RewriteRules env) implemen
         if (matchRewriteRules == null) {
             return null;
         }
-        return matchRewriteRules.rewrite(expr);
+        return env.rewrite(matchRewriteRules.rewrite(expr));
     }
 
     @Override
