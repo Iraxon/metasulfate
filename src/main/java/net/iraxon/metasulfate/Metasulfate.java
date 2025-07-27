@@ -24,7 +24,7 @@ public class Metasulfate {
 
     public static void main(final String[] args) {
         System.out.println("\n\n\n---\n" +
-                evalFile("src/main/resources/metasulfate/example.meso") + "\n---\n\n\n");
+                evalFile("src/main/resources/metasulfate/!standard_library.meso") + "\n---\n\n\n");
     }
 
     public static AST evalFile(final String path) {
