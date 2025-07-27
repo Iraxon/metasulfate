@@ -11,7 +11,7 @@ interface Pattern {
      *         matching or null
      *         if there is no match
      */
-    public RewriteRules match(AST expr);
+    public RewriteSystem match(AST expr);
 }
 
 record LiteralPattern(AST lit) implements Pattern {
@@ -21,9 +21,9 @@ record LiteralPattern(AST lit) implements Pattern {
     }
 
     @Override
-    public RewriteRules match(AST expr) {
+    public RewriteSystem match(AST expr) {
         if (expr.equals(lit))
-            return RewriteRules.EMPTY;
+            return RewriteSystem.EMPTY;
         return null;
     }
 
@@ -36,8 +36,8 @@ record LiteralPattern(AST lit) implements Pattern {
 record VariablePattern(String name) implements Pattern {
 
     @Override
-    public RewriteRules match(AST expr) {
-        final var r = RewriteRules.of(new FunctionRewriteRule(LiteralPattern.of(name), expr, RewriteRules.EMPTY));
+    public RewriteSystem match(AST expr) {
+        final var r = RewriteSystem.of(new FunctionRewriteRule(LiteralPattern.of(name), expr, RewriteSystem.EMPTY));
         // System.out.println("Variable bindings env: (\n" + r + ")");
         return r;
     }
@@ -55,37 +55,37 @@ record SequencePattern(List<Pattern> patterns) implements Pattern {
     }
 
     @Override
-    public RewriteRules match(AST expr) {
+    public RewriteSystem match(AST expr) {
         final List<AST> elements;
         if (expr instanceof NestedNode sequenceExpr
                 && (elements = sequenceExpr.children()).size() == patterns.size()) {
 
             // Make a list from the results of matching pattern[i] to sequence[i]
-            List<RewriteRules> matchResults = IntStream.range(0, patterns.size()).mapToObj(
+            List<RewriteSystem> matchResults = IntStream.range(0, patterns.size()).mapToObj(
                     (i) -> (patterns.get(i).match(elements.get(i)))).toList();
 
             // Any failures to match in the list mean the whole sequence fails to match
             if (matchResults.stream().anyMatch(x -> x == null)) {
                 return null;
             }
-            final RewriteRules r = matchResults.stream().reduce(RewriteRules.EMPTY, SequencePattern::merge);
+            final RewriteSystem r = matchResults.stream().reduce(RewriteSystem.EMPTY, SequencePattern::merge);
             // System.out.println("Sequence match result: (\n" + r + ")");
             return r;
         }
         return null;
     }
 
-    private static RewriteRules merge(RewriteRules x, RewriteRules y) {
-        final RewriteRules r;
+    private static RewriteSystem merge(RewriteSystem x, RewriteSystem y) {
+        final RewriteSystem r;
         @SuppressWarnings("unused")
         final String criterion;
         if (x.equals(y)) {
             r = x;
             criterion = "EQUAL";
-        } else if (x.equals(RewriteRules.EMPTY)) {
+        } else if (x.equals(RewriteSystem.EMPTY)) {
             r = y;
             criterion = "FIRST_EMPTY";
-        } else if (y.equals(RewriteRules.EMPTY)) {
+        } else if (y.equals(RewriteSystem.EMPTY)) {
             r = x;
             criterion = "SECOND_EMPTY";
         } else if (x == null || y == null || x.conflictsWith(y)) {
@@ -109,9 +109,9 @@ enum SingletonPatterns implements Pattern {
     EMPTY;
 
     @Override
-    public RewriteRules match(AST expr) {
+    public RewriteSystem match(AST expr) {
         return switch (this) {
-            case WILDCARD -> RewriteRules.EMPTY;
+            case WILDCARD -> RewriteSystem.EMPTY;
             case EMPTY -> null;
         };
     }

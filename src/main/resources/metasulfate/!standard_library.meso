@@ -9,7 +9,7 @@
     [IF 'c 'x 'y] -> y [
     [IF T 'x 'y] -> x [
 
-    [IF [F NAND T] 1 2]
+    [IF F 1 2]
 
     ]]]]]]
 ]

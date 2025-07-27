@@ -1,17 +1,16 @@
 package net.iraxon.metasulfate;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * An association list of rewrite rules
  */
-record RewriteRules(RewriteRules outer, RewriteRule rule) {
+record RewriteSystem(RewriteSystem outer, RewriteRule rule) {
 
-    public static final RewriteRules EMPTY = new RewriteRules(null, RewriteRule.EMPTY);
-    public static final RewriteRules DEFAULT = RewriteRules.of(SingletonRewriteRules.REWRITE_RULE_DECLARATION);
+    public static final RewriteSystem EMPTY = new RewriteSystem(null, RewriteRule.EMPTY);
+    public static final RewriteSystem DEFAULT = RewriteSystem.of(SingletonRewriteRules.REWRITE_RULE_DECLARATION);
 
     // public static final RewriteRules defaultRules = new RewriteRules(null,
     // new MesoName("T"), MesoBool.T)
@@ -22,16 +21,16 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
      * @deprecated Please do not use the constructor; use {@code RewriteRules::of}
      */
     @Deprecated
-    public RewriteRules {
+    public RewriteSystem {
     }
 
-    public static RewriteRules of(RewriteRule rule) {
+    public static RewriteSystem of(RewriteRule rule) {
         return EMPTY.extend(rule);
     }
 
     public List<RewriteRule> asList() {
         ArrayList<RewriteRule> rVal = new ArrayList<>();
-        RewriteRules current = this;
+        RewriteSystem current = this;
         do {
             rVal.add(current.rule);
             current = current.outer;
@@ -50,18 +49,18 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
         return asList().size();
     }
 
-    public RewriteRules extend(final RewriteRule newRule) {
+    public RewriteSystem extend(final RewriteRule newRule) {
         if (newRule.equals(RewriteRule.EMPTY)) {
             return this;
         }
-        return new RewriteRules(this.equals(EMPTY) ? null : this, newRule);
+        return new RewriteSystem(this.equals(EMPTY) ? null : this, newRule);
     }
 
-    public RewriteRules extend(final RewriteRules other) {
+    public RewriteSystem extend(final RewriteSystem other) {
         // System.out.println("Extending: (\n" + this + ") with: (\n" + other + ")");
         if (other.equals(EMPTY))
             return this;
-        RewriteRules rVal = this;
+        RewriteSystem rVal = this;
         for (RewriteRule rule : other.asList()) {
             // System.out.println("Adding rule: " + rule);
             rVal = rVal.extend(rule);
@@ -69,7 +68,7 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
         return rVal;
     }
 
-    private record CacheEntry(RewriteRules rules, AST in) {
+    private record CacheEntry(RewriteSystem rules, AST in) {
     }
 
     private static ConcurrentHashMap<CacheEntry, AST> rewriteCache = new ConcurrentHashMap<>();
@@ -87,15 +86,17 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
         if (rewriteCache.containsKey(cacheEntry))
             return rewriteCache.get(cacheEntry);
 
-        final AST r = rewriteChildrenIfNested(input);
-        final AST rV = rule.apply(r, this);
-        if (r.equals(rV)) {
-            System.out.println("\t\tTerm " + r + " did not match " + rule);
-        } else {
-            System.out.println("Term " + r + " rewritten by " + rule + " yielding : " + rV);
+        final AST before = rewriteChildrenIfNested(input);
+        final AST after = rule.apply(before, this);
+        if (!rule.equals(SingletonRewriteRules.REWRITE_RULE_DECLARATION)) {
+            if (before.equals(after)) {
+                System.out.println("\t\tTerm " + before + " did not match " + rule);
+            } else {
+                System.out.println("Term " + before + " rewritten by " + rule + " yielding : " + after);
+            }
         }
-        rewriteCache.put(cacheEntry, rV);
-        return rV;
+        rewriteCache.put(cacheEntry, after);
+        return after;
 
         // AST r = input;
         // if (input instanceof NestedNode n) {
@@ -128,7 +129,7 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
         };
     }
 
-    public boolean conflictsWith(RewriteRules other) {
+    public boolean conflictsWith(RewriteSystem other) {
         if (this.equals(other)) {
             return false;
         }
@@ -147,7 +148,7 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
 
     @Override
     public String toString() {
-        if (this.equals(RewriteRules.EMPTY)) {
+        if (this.equals(RewriteSystem.EMPTY)) {
             return "\tRewriteRules.EMPTY\n";
         }
         return (outer == null ? "" : outer.toString())

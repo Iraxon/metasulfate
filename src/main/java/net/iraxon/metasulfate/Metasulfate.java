@@ -20,7 +20,7 @@ import java.util.function.Consumer;
 
 public class Metasulfate {
 
-    public static final RewriteRules GLOBALS = RewriteRules.DEFAULT;
+    public static final RewriteSystem GLOBALS = RewriteSystem.DEFAULT;
 
     public static void main(final String[] args) {
         System.out.println("\n\n\n---\n" +
