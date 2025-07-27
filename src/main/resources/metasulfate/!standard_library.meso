@@ -1,11 +1,15 @@
 (Copyright 2025 Iraxon; this file is free software under the GNU GPL v3-or-later)
 
 [
-    [NOT T] -> F
-    [NOT F] -> T
-    ['x NAND 'y] -> T
-    [T NAND T] -> F
+    [NOT 'x] -> T [
+    [NOT T] -> F [
+    ['x NAND 'y] -> T [
+    [T NAND T] -> F [
 
-[DELTA 'x 'y] -> [DIFF y x]
+    [IF 'c 'x 'y] -> y [
+    [IF T 'x 'y] -> x [
 
+    [IF [F NAND T] 1 2]
+
+    ]]]]]]
 ]

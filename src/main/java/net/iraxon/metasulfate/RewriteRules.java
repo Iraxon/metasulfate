@@ -1,7 +1,9 @@
 package net.iraxon.metasulfate;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * An association list of rewrite rules
@@ -49,8 +51,9 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
     }
 
     public RewriteRules extend(final RewriteRule newRule) {
-        if (newRule.equals(RewriteRule.EMPTY))
+        if (newRule.equals(RewriteRule.EMPTY)) {
             return this;
+        }
         return new RewriteRules(this.equals(EMPTY) ? null : this, newRule);
     }
 
@@ -66,26 +69,63 @@ record RewriteRules(RewriteRules outer, RewriteRule rule) {
         return rVal;
     }
 
+    private record CacheEntry(RewriteRules rules, AST in) {
+    }
+
+    private static ConcurrentHashMap<CacheEntry, AST> rewriteCache = new ConcurrentHashMap<>();
+
     /**
-     * Rewrites the input and/or its subexpressions using the first ("lowest") available
-     * rewrite rule
+     * Rewrites the input by applying all rules from bottom to top
      *
      * @param input A term
      * @return The result of the aforementioned rewriting or the provided input
      *         if none of the rules apply to this term
      */
     public AST rewrite(final AST input) {
-        AST r = input;
-        if (input instanceof NestedNode n) {
-            r = new NestedNode(n.children().stream().map(this::rewrite).toList());
+
+        final CacheEntry cacheEntry = new CacheEntry(this, input);
+        if (rewriteCache.containsKey(cacheEntry))
+            return rewriteCache.get(cacheEntry);
+
+        final AST r = rewriteChildrenIfNested(input);
+        final AST rV = rule.apply(r, this);
+        if (r.equals(rV)) {
+            System.out.println("\t\tTerm " + r + " did not match " + rule);
+        } else {
+            System.out.println("Term " + r + " rewritten by " + rule + " yielding : " + rV);
         }
-        AST thisApply = rule.apply(r, this);
-        if (thisApply != null) {
-            r = thisApply;
-        } else if (outer != null) {
-            r = outer.rewrite(r);
-        }
-        return r;
+        rewriteCache.put(cacheEntry, rV);
+        return rV;
+
+        // AST r = input;
+        // if (input instanceof NestedNode n) {
+        // r = rewriteChildren(n);
+        // }
+        // AST thisApply = rule.apply(r, this);
+        // if (thisApply != null) {
+        // r = thisApply;
+        // } else if (outer != null) {
+        // System.out.println(outer);
+        // r = outer.rewrite(r);
+        // }
+        // return r;
+    }
+
+    /**
+     * Rewrites the children of a nested node
+     *
+     * @param in A NestedNode
+     * @return The same, but with each child rewriten
+     */
+    public NestedNode rewriteChildren(NestedNode in) {
+        return new NestedNode(in.children().stream().map(this::rewrite).toList());
+    }
+
+    public AST rewriteChildrenIfNested(AST in) {
+        return switch (in) {
+            case NestedNode n -> rewriteChildren(n);
+            default -> in;
+        };
     }
 
     public boolean conflictsWith(RewriteRules other) {

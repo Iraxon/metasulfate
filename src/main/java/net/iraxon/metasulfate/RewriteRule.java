@@ -11,8 +11,7 @@ interface RewriteRule {
      * @param env   The ruleset that is invoking the application of the rule (needed
      *              for propagating rewriting
      *              downward)
-     * @return the result of applying this rewrite rule to the input or
-     *         null if the input does not match this rewrite rule
+     * @return the result of applying this rewrite rule to the input (which may just be the input)
      */
     public AST apply(AST input, RewriteRules env);
 
@@ -45,7 +44,7 @@ enum SingletonRewriteRules implements RewriteRule {
     @Override
     public AST apply(AST input, RewriteRules env) {
         return switch (this) {
-            case EMPTY -> null;
+            case EMPTY -> input;
             case REWRITE_RULE_DECLARATION -> applyRuleDeclaration(input, env);
         };
     }
@@ -70,24 +69,32 @@ enum SingletonRewriteRules implements RewriteRule {
 
             return env.rewrite(rewriteEnv.rewrite(children.get(3)));
         }
-        return null;
+        return in;
     }
 }
 
-record FunctionRewriteRule(Pattern pattern, AST expr, RewriteRules env) implements RewriteRule {
+record FunctionRewriteRule(Pattern pattern, AST expr, RewriteRules closureEnv) implements RewriteRule {
 
     @Override
     public AST apply(AST input, RewriteRules env) {
-        final RewriteRules matchRewriteRules = pattern.match(input);
-        System.out.println("Term " + input + " tested against " + pattern + " yielding env: (\n" + matchRewriteRules + ")");
-        if (matchRewriteRules == null) {
-            return null;
+
+        AST r = input;
+
+        final RewriteRules matchRewriteRules = pattern.match(r);
+        // System.out.println(switch (matchRewriteRules) {
+        //     case null -> "\t\tTerm " + r + " did not match " + pattern;
+        //     default ->
+        //         "Term " + r + " tested against " + pattern + " yielding env: (\n" + matchRewriteRules + ")";
+        // });
+        if (matchRewriteRules != null) {
+            return env.rewrite(closureEnv.rewrite(matchRewriteRules.rewrite(expr)));
         }
-        return env.rewrite(matchRewriteRules.rewrite(expr));
+        return input;
     }
 
     @Override
     public String toString() {
-        return pattern.toString() + " -> " + expr.toString() + (env.equals(RewriteRules.EMPTY) ? "" : " (\n" + env.toString() + ")");
+        return pattern.toString() + " -> " + expr.toString()
+                + (closureEnv.equals(RewriteRules.EMPTY) ? "" : " (\n" + closureEnv.toString() + ")");
     }
 }
