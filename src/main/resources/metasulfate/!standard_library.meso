@@ -1,76 +1,11 @@
 (Copyright 2025 Iraxon; this file is free software under the GNU GPL v3-or-later)
 
-(CAPITAL names are **reserved for the use of the language itself**. All
-of your own names should be lowercase.)
+[
+    [NOT T] -> F
+    [NOT F] -> T
+    ['x NAND 'y] -> T
+    [T NAND T] -> F
 
-(The following functions and constants are provided by the interpreter directly: ! ! ! ! ! !!!INCOMPLETE LIST!!! ! ! ! !
+[DELTA 'x 'y] -> [DIFF y x]
 
-    - Basic arithmetic operations SUM, DIFF, DELTA (x, y => y - x), PROD (product), QUO (quotient)
-    and POW (exponentiation)
-
-    - (AND) :: Logical and
-    - APPLY :: See [ ], .
-    - DELTA :: Numeric subtraction (second arg - first arg)
-    - DIFF  :: Numeric subtraction (first arg - second arg)
-    - DOT   :: Refers to the argument (use inside function definitions)
-    - EQUAL :: Consumes two arguments; evaluates to T or F depending on their equality
-    - F     :: Boolean false
-    - FOLD  :: Left fold/reduce
-    - (INST):: Checks if first argument is an instance of the second argument
-    - (INT) :: Integer numeric type; equivalent to Java long type
-    - LET   :: Consumes three arguments; the first should be a name; the second should be a value;
-            the third argument is an expression;
-            any ocurrences of the name in that expression will be replaced with the value
-    - (MOD) :: Modulo operator (first arg % second arg)
-    - (OR)  :: Logical or
-    - PROD  :: Numeric multiplication
-    - POW   :: Numeric exponentiation (first arg ^ second arg)
-    - QUO   :: Numerc division, list concatenation
-    - REC   :: Refers to the function itself (when used inside function definitions)
-    - SUM   :: Numeric addition
-    - T     :: Boolean true
-    - [ ]   :: Literal function/quotation delimeters; literal functions will not be applied to following terms by default
-            as happens with names that refer to functions
-    - .     :: No apply; if this appears as an argument to a function that would otherwise be applied,
-            the function itself will be returned; not necessary for [] literal functions, which will not be
-            applied without explicit use of APPLY
-
-This file serves to provide all the others a programmer would expect
-the language to have.)
-
-['DELTA x y] -> [DIFF y x]
-
-(
-WHERE 'FUN = [[args body] -> [args -> body]]
-WHERE 'DELTA = [[x y] -> [DIFF y x]]
-)
-
-(
-EXPORT
-
-LET 'UNARY_FUN
-    [LET 'arg_name DOT [LET 'body DOT.
-        [LET arg_name DOT UNQUOTE body]
-    ]]
-
-LET 'FUN
-    [LET 'args DOT [LET 'body DOT.
-        FOLD
-            [LET 'acc DOT [LET 'new DOT
-                UNARY_FUN new acc.
-            ]]
-            SUM {'body} REVERSE args
-        .
-    ]]
-
-LET 'DELTA
-    FUN {'x 'y} [DIFF y x].
-
-(
-LET 'POLAR
-    FUN {'x 'y} [{
-        PYTH x y
-        ATAN2 y x
-    }]
-)
-)
+]

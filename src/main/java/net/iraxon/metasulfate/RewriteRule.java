@@ -63,13 +63,12 @@ enum SingletonRewriteRules implements RewriteRule {
         if (in instanceof NestedNode nested && (children = nested.children()).size() == 4
                 && children.get(1).equals(Atom.of("->"))) {
 
-            final AST left = children.get(0);
-            final AST right = children.get(2);
-            final AST rest = children.get(3);
+            final AST left = env.rewrite(children.get(0));
+            final AST right = env.rewrite(children.get(2));
 
             final RewriteRules rewriteEnv = env.extend(new FunctionRewriteRule(left.asPattern(), right, env));
 
-            return rewriteEnv.rewrite(rest);
+            return env.rewrite(rewriteEnv.rewrite(children.get(3)));
         }
         return null;
     }
