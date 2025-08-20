@@ -42,12 +42,14 @@ public class Metasulfate {
     return eval(src);
     }
 
-    public static AST preEval(final String src) {
+    public static AST parseLex(final String src) {
         return parse(lex(src));
     }
 
     public static AST eval(final String src) {
-        return GLOBALS.rewrite(preEval(src));
+        final var parsedLexed = parseLex(src);
+        System.out.println(parsedLexed);
+        return GLOBALS.rewrite(parsedLexed);
     }
 
     private static List<String> lex(final String src) {
