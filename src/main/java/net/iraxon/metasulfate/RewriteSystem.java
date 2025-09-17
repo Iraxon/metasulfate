@@ -2,7 +2,6 @@ package net.iraxon.metasulfate;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * An association list of rewrite rules
@@ -68,65 +67,8 @@ record RewriteSystem(RewriteSystem outer, RewriteRule rule) {
         return rVal;
     }
 
-    private record CacheEntry(RewriteSystem rules, AST in) {
-    }
-
-    private static ConcurrentHashMap<CacheEntry, AST> rewriteCache = new ConcurrentHashMap<>();
-
-    /**
-     * Rewrites the input by applying all rules from bottom to top
-     *
-     * @param input A term
-     * @return The result of the aforementioned rewriting or the provided input
-     *         if none of the rules apply to this term
-     */
-    public AST rewrite(final AST input) {
-
-        final CacheEntry cacheEntry = new CacheEntry(this, input);
-        if (rewriteCache.containsKey(cacheEntry))
-            return rewriteCache.get(cacheEntry);
-
-        final AST before = rewriteChildrenIfNested(input);
-        final AST after = rule.apply(before, this);
-        if (!rule.equals(SingletonRewriteRules.REWRITE_RULE_DECLARATION)) {
-            if (before.equals(after)) {
-                System.out.println("\t\tTerm " + before + " did not match " + rule);
-            } else {
-                System.out.println("Term " + before + " rewritten by " + rule + " yielding : " + after);
-            }
-        }
-        rewriteCache.put(cacheEntry, after);
-        return after;
-
-        // AST r = input;
-        // if (input instanceof NestedNode n) {
-        // r = rewriteChildren(n);
-        // }
-        // AST thisApply = rule.apply(r, this);
-        // if (thisApply != null) {
-        // r = thisApply;
-        // } else if (outer != null) {
-        // System.out.println(outer);
-        // r = outer.rewrite(r);
-        // }
-        // return r;
-    }
-
-    /**
-     * Rewrites the children of a nested node
-     *
-     * @param in A NestedNode
-     * @return The same, but with each child rewriten
-     */
-    public NestedNode rewriteChildren(NestedNode in) {
-        return new NestedNode(in.children().stream().map(this::rewrite).toList());
-    }
-
-    public AST rewriteChildrenIfNested(AST in) {
-        return switch (in) {
-            case NestedNode n -> rewriteChildren(n);
-            default -> in;
-        };
+    public RewriteSystemTraverser traverser() {
+        return new RewriteSystemTraverser(this);
     }
 
     public boolean conflictsWith(RewriteSystem other) {
@@ -153,6 +95,19 @@ record RewriteSystem(RewriteSystem outer, RewriteRule rule) {
         }
         return (outer == null ? "" : outer.toString())
                 + "\t" + rule.toString() + "\n";
+    }
+
+    public record RewriteSystemTraverser(RewriteSystem target) {
+        public RewriteSystemTraverser next() {
+            var next = new RewriteSystemTraverser(target.outer);
+            if (next.target == null)
+                return null;
+            return next;
+        }
+
+        public RewriteRule rule() {
+           return target.rule();
+        }
     }
 
     // public String toString() {

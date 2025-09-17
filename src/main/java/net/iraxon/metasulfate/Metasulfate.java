@@ -49,7 +49,7 @@ public class Metasulfate {
     public static AST eval(final String src) {
         final var parsedLexed = parseLex(src);
         System.out.println(parsedLexed);
-        return GLOBALS.rewrite(parsedLexed);
+        return parsedLexed.exhaustiveRewrite(GLOBALS);
     }
 
     private static List<String> lex(final String src) {
@@ -159,12 +159,13 @@ public class Metasulfate {
             return switch (token) {
                 case "[" -> parseList();
                 case "]" -> ASTSingletons.END_OF_LIST;
-                case "'" -> new NameNode(grab());
+                case "{" -> parseSequencePattern();
+                case "'" -> new VariablePattern(grab());
                 default -> Atom.of(token);
             };
         }
 
-        private AST parseList() {
+        private NestedNode parseList() {
             final ArrayList<AST> nodes = new ArrayList<>();
             // System.out.println("Parsing list");
             AST current;
@@ -177,6 +178,32 @@ public class Metasulfate {
                 // case 1 -> new ValueNode(nodes.get(0));
                 case 0 -> null;
                 default -> new NestedNode(List.copyOf(nodes));
+            };
+        }
+
+        private Pattern parsePatternValue() {
+            String token = grab();
+            // System.out.println("Parsing value: " + token);
+            return switch (token) {
+                case "{" -> parseSequencePattern();
+                case "}" -> SingletonPatterns.END_OF_SEQUENCE;
+                case "'" -> new VariablePattern(grab());
+                default -> LiteralPattern.of(token);
+            };
+        }
+
+        private SequencePattern parseSequencePattern() {
+            final ArrayList<Pattern> patterns = new ArrayList<>();
+            Pattern current;
+            while (hasNext() && ((current = parsePatternValue()) != SingletonPatterns.END_OF_SEQUENCE)) {
+                if (current != null) {
+                    patterns.add(current);
+                }
+            }
+            return switch (patterns.size()) {
+                // case 1 -> new ValueNode(nodes.get(0));
+                case 0 -> null;
+                default -> new SequencePattern(List.copyOf(patterns));
             };
         }
 

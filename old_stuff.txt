@@ -1911,3 +1911,36 @@ oldRewrite {
         System.out.println("Yielding: " + r);
         return r;
     }
+
+    /**
+     * Returns the result of apply on the highest (lowest depth from input) term for which
+     * applying the rule returns a distinct result or the input if nothing can be changed
+     */
+    public default AST applyHighest(AST input, RewriteSystem env) {
+        AST before;
+        AST after;
+        before = input;
+        after = apply(input, env);
+        if (!before.equals(after)) {
+            return after;
+        }
+        if (input instanceof NestedNode n) {
+            ArrayList<AST> newChildren = new ArrayList<>();
+            boolean found = false;
+
+            for (var child : n.children()) {
+                if (found) {
+                    newChildren.add(child);
+                }
+                else {
+                    before = child;
+                    after = applyHighest(before, env);
+                    newChildren.add(after);
+                    if (!before.equals(after)) {
+                        found = true;
+                    }
+                }
+            }
+        }
+        return input;
+    }

@@ -3,7 +3,7 @@ package net.iraxon.metasulfate;
 import java.util.List;
 import java.util.stream.IntStream;
 
-interface Pattern {
+interface Pattern extends AST {
     /**
      * @param expr The expression to attempt to match; this argument will not be
      *             reduced by the pattern matching algorithm
@@ -12,6 +12,11 @@ interface Pattern {
      *         if there is no match
      */
     public RewriteSystem match(AST expr);
+
+    @Override
+    public default Pattern asPattern() {
+        throw new UnsupportedOperationException("Pattern cannot be converted to Pattern");
+    }
 }
 
 record LiteralPattern(AST lit) implements Pattern {
@@ -37,7 +42,7 @@ record VariablePattern(String name) implements Pattern {
 
     @Override
     public RewriteSystem match(AST expr) {
-        final var r = RewriteSystem.of(new FunctionRewriteRule(LiteralPattern.of(name), expr, RewriteSystem.EMPTY));
+        final var r = RewriteSystem.of(new FunctionRewriteRule(LiteralPattern.of(name), expr));
         // System.out.println("Variable bindings env: (\n" + r + ")");
         return r;
     }
@@ -100,19 +105,20 @@ record SequencePattern(List<Pattern> patterns) implements Pattern {
     }
 
     public String toString() {
-        return NestedNode.renderList(patterns);
+        return NestedNode.renderList(patterns, true);
     }
 }
 
 enum SingletonPatterns implements Pattern {
     WILDCARD,
-    EMPTY;
+    EMPTY,
+    END_OF_SEQUENCE;
 
     @Override
     public RewriteSystem match(AST expr) {
         return switch (this) {
             case WILDCARD -> RewriteSystem.EMPTY;
-            case EMPTY -> null;
+            case EMPTY, END_OF_SEQUENCE -> null;
         };
     }
 }
