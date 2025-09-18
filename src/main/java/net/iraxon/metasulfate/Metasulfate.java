@@ -16,7 +16,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class Metasulfate {
 
@@ -28,18 +30,18 @@ public class Metasulfate {
     }
 
     public static AST evalFile(final String path) {
-    String src = "";
-    final Scanner s;
-    try {
-        s = new Scanner(new File(path));
-    } catch (final FileNotFoundException e) {
-        throw new UncheckedIOException(e);
-    }
-    while (s.hasNextLine()) {
-        src += s.nextLine() + " ";
-    }
-    s.close();
-    return eval(src);
+        String src = "";
+        final Scanner s;
+        try {
+            s = new Scanner(new File(path));
+        } catch (final FileNotFoundException e) {
+            throw new UncheckedIOException(e);
+        }
+        while (s.hasNextLine()) {
+            src += s.nextLine() + " ";
+        }
+        s.close();
+        return eval(src);
     }
 
     public static AST parseLex(final String src) {
@@ -126,6 +128,76 @@ public class Metasulfate {
                     commentNestingDepth--;
                 }
             }
+        }
+    }
+
+    public static sealed interface Term permits Term.Atomic, Term.Nested, Term.Pattern {
+
+        /**
+         * Rewrites all subterms (including possibly the term itself)
+         * using the given rewrite rule
+         *
+         * @param term The original term
+         * @param rule A rewrite rule, which defaults to returning the input unchanged if nothing is to be done
+         * @return The rewritten term
+         */
+        public static Term rewrite(Term term, Function<Term, Term> rule) {
+            return doUntilSame(term, (t) -> switch (t) {
+                case Nested l ->
+                    rule.apply(new Nested(l.children.stream().map((child) -> (rewrite(child, rule))).toList()));
+                default -> rule.apply(t);
+            });
+        }
+
+        public static record Atomic(String name) implements Term {
+            private static ConcurrentHashMap<String, Atomic> cache = new ConcurrentHashMap<>();
+
+            public static Atomic of(String name) {
+                return cache.computeIfAbsent(name, Atomic::new);
+            }
+        }
+
+        public static record Nested(List<Term> children) implements Term {
+        }
+
+        public static record Pattern(Function<Term, Function<Term, Term>> rule) implements Term, Function<Term, Function<Term, Term>> {
+            private static ConcurrentHashMap<Function<Term, Function<Term, Term>>, Pattern> cache = new ConcurrentHashMap<>();
+            public static Pattern REWRITE_RULE = new Pattern(
+                    (term) -> {
+                        List<Term> children;
+                        final Term left;
+                        final Term right;
+                        final Term rest;
+                        if (term instanceof Nested n && (children = n.children).size() == 4) {
+                            assert (left = children.get(0)) instanceof Pattern;
+                            assert children.get(1).equals(Atomic.of("->"));
+                            right = children.get(2);
+                            rest = children.get(3);
+                            return Term.rewrite(rest, (t) -> {
+                                return left.apply(t).apply(right);
+                            });
+                        }
+                        return term;
+                    });
+
+            public static Pattern of(Function<Term, Function<Term, Term>> rule) {
+                return cache.computeIfAbsent(rule, Pattern::new);
+            }
+
+            @Override
+            public Function<Term, Term> apply(Term t) {
+                return rule.apply(t);
+            }
+        }
+
+        private static <R> R doUntilSame(R input, Function<R, R> function) {
+            R previous;
+            R next = input;
+            do {
+                previous = next;
+                next = function.apply(previous);
+            } while (previous != next);
+            return next;
         }
     }
 
