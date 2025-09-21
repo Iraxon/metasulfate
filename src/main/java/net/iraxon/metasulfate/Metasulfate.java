@@ -29,7 +29,7 @@ import net.iraxon.metasulfate.Metasulfate.Term.Nested.Simple;
 
 public class Metasulfate {
 
-    public static final Function<Term, Term> GLOBAL = Function.identity();
+    private static final Function<Term, Term> GLOBAL = Function.identity();
 
     public static void main(final String[] args) {
         System.out.println("\n\n\n---\n" +
@@ -58,7 +58,7 @@ public class Metasulfate {
     public static Term eval(final String src) {
         final var parsedLexed = parseLex(src);
         System.out.println(parsedLexed);
-        var rVal = parsedLexed.rewrite(GLOBAL);
+        final var rVal = parsedLexed.rewrite(GLOBAL);
         System.out.println(rVal);
         return rVal;
     }
@@ -141,13 +141,18 @@ public class Metasulfate {
 
     public static sealed interface Term permits Term.Atomic, Term.Nested, Term.Singleton {
 
-        static boolean debug = true;
+        static abstract class Statics {
+            private static final boolean debug = true;
+            private static final Map<Term, Map<Function<Term, Term>, Term>> cache = new ConcurrentHashMap<>();
+        }
 
-        private static Term rewrite(Term term, Function<Term, Term> rule) {
-            Term thingToPrint = term;
-            var rVal = switch (term) {
-                case Nested n -> switch (n) {
-                    case RewriteOrder r -> r.subject().rewrite(rule.compose(
+        private static Term rewrite(final Term term, final Function<Term, Term> rule) {
+            final Term thingToPrint = term;
+
+            Statics.cache.putIfAbsent(term, new ConcurrentHashMap<Function<Term, Term>, Term>());
+            final var rVal = Statics.cache.get(term).containsKey(rule) ? Statics.cache.get(term).get(rule) : switch (term) {
+                case final Nested n -> switch (n) {
+                    case final RewriteOrder r -> r.subject().rewrite(rule.compose(
                             termFromSubject -> {
                                 final var match = r.pattern().match(termFromSubject);
                                 if (match == null) {
@@ -157,14 +162,17 @@ public class Metasulfate {
                                         termFromExpr -> match == null ? termFromExpr
                                                 : match.getOrDefault(termFromExpr, termFromExpr));
                             }));
-                    case Nested nested -> untilSame(
+                    case final Nested nested -> untilSame(
                             Nested.of(nested.children().stream().map(child -> child.rewrite(rule)).toList()),
                             rule);
                 };
-                case Atomic a -> untilSame(a, rule);
-                case Singleton s -> s.err();
+                case final Atomic a -> untilSame(a, rule);
+                case final Singleton s -> s.err();
             };
-            System.out.println(thingToPrint.toString() + " ::- " + rVal);
+            if (Statics.debug) {
+                System.out.println(thingToPrint.toString() + " ::- " + rVal);
+            }
+            Statics.cache.get(term).putIfAbsent(rule, rVal);
             return rVal;
         }
 
@@ -176,26 +184,26 @@ public class Metasulfate {
          *             if there is no match
          * @return The rewritten term
          */
-        public default Term rewrite(Function<Term, Term> rule) {
+        public default Term rewrite(final Function<Term, Term> rule) {
             return Term.rewrite(this, rule);
         }
 
-        public static Map<Term, Term> match(Term pattern, Term other) {
+        public static Map<Term, Term> match(final Term pattern, final Term other) {
             return switch (pattern) {
-                case Atomic a -> a.name().length() >= 1 && a.name().charAt(0) == '\''
+                case final Atomic a -> a.name().length() >= 1 && a.name().charAt(0) == '\''
                         ? Map.of(Atomic.of(a.name().substring(1)), other)
                         : (a.equals(other) ? Map.of() : null);
-                case Nested n -> switch (n) {
-                    case RewriteOrder r -> null;
-                    case Nested nested -> matchNested(nested, other);
+                case final Nested n -> switch (n) {
+                    case final RewriteOrder r -> null;
+                    case final Nested nested -> matchNested(nested, other);
                 };
-                case Singleton s -> Map.of(s.err(), s);
+                case final Singleton s -> Map.of(s.err(), s);
             };
         }
 
-        private static Map<Term, Term> matchNested(Nested self, Term other) {
+        private static Map<Term, Term> matchNested(final Nested self, final Term other) {
             final int size = self.children().size();
-            if (other instanceof Nested nestedOther && nestedOther.children().size() == size) {
+            if (other instanceof final Nested nestedOther && nestedOther.children().size() == size) {
                 return IntStream.range(0, size).mapToObj(
                         i -> self.children().get(i).match(nestedOther.children().get(i)))
                         .reduce(Map.of(), Simple::merge);
@@ -210,11 +218,11 @@ public class Metasulfate {
          * @param other Another Term
          * @return A Map or null if there is no match
          */
-        public default Map<Term, Term> match(Term other) {
+        public default Map<Term, Term> match(final Term other) {
             return Term.match(this, other);
         }
 
-        private static <R> R untilSame(R input, Function<R, R> function) {
+        private static <R> R untilSame(final R input, final Function<R, R> function) {
             R previous;
             R next = input;
             do {
@@ -224,7 +232,7 @@ public class Metasulfate {
             return next;
         }
 
-        private static String renderList(List<?> list, boolean curlyBrackets) {
+        private static String renderList(final List<?> list, final boolean curlyBrackets) {
             final char left = curlyBrackets ? '{' : '[';
             final char right = curlyBrackets ? '}' : ']';
             return left + list.stream().map(t -> t.toString()).reduce("",
@@ -234,7 +242,7 @@ public class Metasulfate {
         public static non-sealed interface Atomic extends Term {
             static ConcurrentHashMap<String, Name> cache = new ConcurrentHashMap<>();
 
-            public static Name of(String name) {
+            public static Name of(final String name) {
                 return cache.computeIfAbsent(name, Name::new);
             }
 
@@ -254,7 +262,7 @@ public class Metasulfate {
 
         public static sealed interface Nested extends Term permits Nested.Simple, Nested.RewriteOrder {
 
-            public static Term of(List<Term> children) {
+            public static Term of(final List<Term> children) {
                 return children.size() > 1
                         ? children.size() == 4 && children.get(RewriteOrder.MARKER_INDEX).equals(RewriteOrder.MARKER)
                                 ? new RewriteOrder(children.get(3), children.get(0), children.get(2))
@@ -269,7 +277,7 @@ public class Metasulfate {
                     Objects.requireNonNull(children);
                 }
 
-                private static Map<Term, Term> merge(Map<Term, Term> first, Map<Term, Term> second) {
+                private static Map<Term, Term> merge(final Map<Term, Term> first, final Map<Term, Term> second) {
                     if (first == null || second == null) {
                         return null;
                     }
@@ -277,7 +285,7 @@ public class Metasulfate {
                             .anyMatch(x -> first.containsKey(x) && !second.get(x).equals(first.get(x)))) {
                         return null;
                     }
-                    HashMap<Term, Term> rVal = new HashMap<>(first);
+                    final HashMap<Term, Term> rVal = new HashMap<>(first);
                     rVal.putAll(second);
                     return Map.copyOf(rVal);
                 }
@@ -351,7 +359,7 @@ public class Metasulfate {
                 case "[" -> parseList();
                 case "]" -> Term.Singleton.END_OF_LIST;
                 case "'" -> Term.Atomic.of('\'' + grab());
-                case String s -> Term.Atomic.of(s);
+                case final String s -> Term.Atomic.of(s);
             };
         }
 
@@ -382,10 +390,10 @@ public class Metasulfate {
         }
 
         @SuppressWarnings("unused")
-        private String peek(int n) {
+        private String peek(final int n) {
             try {
                 return src.get(cursor + n);
-            } catch (IndexOutOfBoundsException e) {
+            } catch (final IndexOutOfBoundsException e) {
                 return null;
             }
         }
