@@ -1,20 +1,14 @@
 (Copyright 2025 Iraxon; this file is free software under the GNU GPL v3-or-later)
 
-(['x -> 1 x])
+[NOT F] -> T [
+[NOT T] -> F [
 
+['x NAND 'y] -> T [
+[T NAND T] -> F [
 
-    ['x -> 1 [[x x] x]]
+[IF F 'x 'y] -> y [
+[IF T 'x 'y] -> x [
 
-(
-[
-    {NOT F} -> T [
-    {NOT T} -> F [
-    {'x NAND 'y} -> T [
-    {T NAND T} -> F [
+    IF [NOT [T NAND T]] 1 2
 
-    {IF F 'x 'y} -> y [
-    {IF T 'x 'y} -> x [
-        IF [T NAND T] 1 2
-    ]]]]]]
-]
-)
+]]]]]]

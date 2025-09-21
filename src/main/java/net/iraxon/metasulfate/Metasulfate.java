@@ -12,24 +12,31 @@ import java.io.UncheckedIOException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.IntStream;
+
+import net.iraxon.metasulfate.Metasulfate.Term.Nested.RewriteOrder;
+import net.iraxon.metasulfate.Metasulfate.Term.Nested.Simple;
 
 public class Metasulfate {
 
-    public static final RewriteSystem GLOBALS = RewriteSystem.DEFAULT;
+    public static final Function<Term, Term> GLOBAL = Function.identity();
 
     public static void main(final String[] args) {
         System.out.println("\n\n\n---\n" +
                 evalFile("src/main/resources/metasulfate/!standard_library.meso") + "\n---\n\n\n");
     }
 
-    public static AST evalFile(final String path) {
+    public static Term evalFile(final String path) {
         String src = "";
         final Scanner s;
         try {
@@ -44,21 +51,23 @@ public class Metasulfate {
         return eval(src);
     }
 
-    public static AST parseLex(final String src) {
+    public static Term parseLex(final String src) {
         return parse(lex(src));
     }
 
-    public static AST eval(final String src) {
+    public static Term eval(final String src) {
         final var parsedLexed = parseLex(src);
         System.out.println(parsedLexed);
-        return parsedLexed.exhaustiveRewrite(GLOBALS);
+        var rVal = parsedLexed.rewrite(GLOBAL);
+        System.out.println(rVal);
+        return rVal;
     }
 
     private static List<String> lex(final String src) {
         return Lexer.lex(src);
     }
 
-    private static AST parse(final List<String> src) {
+    private static Term parse(final List<String> src) {
         return new Parser(src).parse();
     }
 
@@ -67,7 +76,6 @@ public class Metasulfate {
         public static List<String> lex(final String rawSrc) {
             final List<String> rVal = new ArrayList<>();
             _lex(rVal, rawSrc);
-            System.out.println("Lexer returning:\n" + rVal);
             return rVal;
         }
 
@@ -131,73 +139,186 @@ public class Metasulfate {
         }
     }
 
-    public static sealed interface Term permits Term.Atomic, Term.Nested, Term.Pattern {
+    public static sealed interface Term permits Term.Atomic, Term.Nested, Term.Singleton {
+
+        static boolean debug = true;
+
+        private static Term rewrite(Term term, Function<Term, Term> rule) {
+            Term thingToPrint = term;
+            var rVal = switch (term) {
+                case Nested n -> switch (n) {
+                    case RewriteOrder r -> r.subject().rewrite(rule.compose(
+                            termFromSubject -> {
+                                final var match = r.pattern().match(termFromSubject);
+                                if (match == null) {
+                                    return termFromSubject;
+                                }
+                                return r.expr().rewrite(
+                                        termFromExpr -> match == null ? termFromExpr
+                                                : match.getOrDefault(termFromExpr, termFromExpr));
+                            }));
+                    case Nested nested -> untilSame(
+                            Nested.of(nested.children().stream().map(child -> child.rewrite(rule)).toList()),
+                            rule);
+                };
+                case Atomic a -> untilSame(a, rule);
+                case Singleton s -> s.err();
+            };
+            System.out.println(thingToPrint.toString() + " ::- " + rVal);
+            return rVal;
+        }
 
         /**
          * Rewrites all subterms (including possibly the term itself)
          * using the given rewrite rule
          *
-         * @param term The original term
-         * @param rule A rewrite rule, which defaults to returning the input unchanged if nothing is to be done
+         * @param rule A rewrite rule, which defaults to returning the input unchanged
+         *             if there is no match
          * @return The rewritten term
          */
-        public static Term rewrite(Term term, Function<Term, Term> rule) {
-            return doUntilSame(term, (t) -> switch (t) {
-                case Nested l ->
-                    rule.apply(new Nested(l.children.stream().map((child) -> (rewrite(child, rule))).toList()));
-                default -> rule.apply(t);
-            });
+        public default Term rewrite(Function<Term, Term> rule) {
+            return Term.rewrite(this, rule);
         }
 
-        public static record Atomic(String name) implements Term {
-            private static ConcurrentHashMap<String, Atomic> cache = new ConcurrentHashMap<>();
+        public static Map<Term, Term> match(Term pattern, Term other) {
+            return switch (pattern) {
+                case Atomic a -> a.name().length() >= 1 && a.name().charAt(0) == '\''
+                        ? Map.of(Atomic.of(a.name().substring(1)), other)
+                        : (a.equals(other) ? Map.of() : null);
+                case Nested n -> switch (n) {
+                    case RewriteOrder r -> null;
+                    case Nested nested -> matchNested(nested, other);
+                };
+                case Singleton s -> Map.of(s.err(), s);
+            };
+        }
 
-            public static Atomic of(String name) {
-                return cache.computeIfAbsent(name, Atomic::new);
+        private static Map<Term, Term> matchNested(Nested self, Term other) {
+            final int size = self.children().size();
+            if (other instanceof Nested nestedOther && nestedOther.children().size() == size) {
+                return IntStream.range(0, size).mapToObj(
+                        i -> self.children().get(i).match(nestedOther.children().get(i)))
+                        .reduce(Map.of(), Simple::merge);
             }
+            return null;
         }
 
-        public static record Nested(List<Term> children) implements Term {
+        /**
+         * Treating this term as a pattern, returns the variable bindings
+         * made by pattern matching
+         *
+         * @param other Another Term
+         * @return A Map or null if there is no match
+         */
+        public default Map<Term, Term> match(Term other) {
+            return Term.match(this, other);
         }
 
-        public static record Pattern(Function<Term, Function<Term, Term>> rule) implements Term, Function<Term, Function<Term, Term>> {
-            private static ConcurrentHashMap<Function<Term, Function<Term, Term>>, Pattern> cache = new ConcurrentHashMap<>();
-            public static Pattern REWRITE_RULE = new Pattern(
-                    (term) -> {
-                        List<Term> children;
-                        final Term left;
-                        final Term right;
-                        final Term rest;
-                        if (term instanceof Nested n && (children = n.children).size() == 4) {
-                            assert (left = children.get(0)) instanceof Pattern;
-                            assert children.get(1).equals(Atomic.of("->"));
-                            right = children.get(2);
-                            rest = children.get(3);
-                            return Term.rewrite(rest, (t) -> {
-                                return left.apply(t).apply(right);
-                            });
-                        }
-                        return term;
-                    });
-
-            public static Pattern of(Function<Term, Function<Term, Term>> rule) {
-                return cache.computeIfAbsent(rule, Pattern::new);
-            }
-
-            @Override
-            public Function<Term, Term> apply(Term t) {
-                return rule.apply(t);
-            }
-        }
-
-        private static <R> R doUntilSame(R input, Function<R, R> function) {
+        private static <R> R untilSame(R input, Function<R, R> function) {
             R previous;
             R next = input;
             do {
                 previous = next;
                 next = function.apply(previous);
-            } while (previous != next);
+            } while (!previous.equals(next));
             return next;
+        }
+
+        private static String renderList(List<?> list, boolean curlyBrackets) {
+            final char left = curlyBrackets ? '{' : '[';
+            final char right = curlyBrackets ? '}' : ']';
+            return left + list.stream().map(t -> t.toString()).reduce("",
+                    (s1, s2) -> (s1.equals("") ? "" : s1 + " ") + s2) + right;
+        }
+
+        public static non-sealed interface Atomic extends Term {
+            static ConcurrentHashMap<String, Name> cache = new ConcurrentHashMap<>();
+
+            public static Name of(String name) {
+                return cache.computeIfAbsent(name, Name::new);
+            }
+
+            public String name();
+
+            public static record Name(String name) implements Atomic {
+                public Name {
+                    Objects.requireNonNull(name);
+                }
+
+                @Override
+                public final String toString() {
+                    return name;
+                }
+            }
+        }
+
+        public static sealed interface Nested extends Term permits Nested.Simple, Nested.RewriteOrder {
+
+            public static Term of(List<Term> children) {
+                return children.size() > 1
+                        ? children.size() == 4 && children.get(RewriteOrder.MARKER_INDEX).equals(RewriteOrder.MARKER)
+                                ? new RewriteOrder(children.get(3), children.get(0), children.get(2))
+                                : new Simple(children)
+                        : children.get(0);
+            }
+
+            public List<Term> children();
+
+            public static record Simple(List<Term> children) implements Nested {
+                public Simple {
+                    Objects.requireNonNull(children);
+                }
+
+                private static Map<Term, Term> merge(Map<Term, Term> first, Map<Term, Term> second) {
+                    if (first == null || second == null) {
+                        return null;
+                    }
+                    if (second.keySet().stream()
+                            .anyMatch(x -> first.containsKey(x) && !second.get(x).equals(first.get(x)))) {
+                        return null;
+                    }
+                    HashMap<Term, Term> rVal = new HashMap<>(first);
+                    rVal.putAll(second);
+                    return Map.copyOf(rVal);
+                }
+
+                @Override
+                public String toString() {
+                    return renderList(children, false);
+                }
+            }
+
+            public static record RewriteOrder(Term subject, Term pattern, Term expr) implements Nested {
+                public static final Atomic.Name MARKER = Atomic.of("->");
+                public static final int MARKER_INDEX = 1;
+
+                public RewriteOrder {
+                    Objects.requireNonNull(subject);
+                    Objects.requireNonNull(pattern);
+                    Objects.requireNonNull(expr);
+                }
+
+                @Override
+                public List<Term> children() {
+                    return List.of(MARKER, subject, pattern, expr);
+                }
+
+                @Override
+                public final String toString() {
+                    return "[ (REWRITE) " + pattern.toString() + " -> " + expr.toString() + " " + subject.toString()
+                            + "]";
+                }
+
+            }
+        }
+
+        public static enum Singleton implements Term {
+            END_OF_LIST,
+            END_OF_SEQUENCE_PATTERN;
+
+            public Singleton err() {
+                throw new UnsupportedOperationException("Parser-exclusive pseudoterm " + this + " in final output.");
+            }
         }
     }
 
@@ -210,8 +331,8 @@ public class Metasulfate {
             this.cursor = 0;
         }
 
-        public AST parse() {
-            final AST rVal = parseValue();
+        public Term parse() {
+            final Term rVal = parseList();
             if (hasNext()) {
                 final ArrayList<String> trailing = new ArrayList<>();
                 while (hasNext()) {
@@ -225,23 +346,20 @@ public class Metasulfate {
             return rVal;
         }
 
-        private AST parseValue() {
-            String token = grab();
-            // System.out.println("Parsing value: " + token);
-            return switch (token) {
+        private Term parseValue() {
+            return switch (grab()) {
                 case "[" -> parseList();
-                case "]" -> ASTSingletons.END_OF_LIST;
-                case "{" -> parseSequencePattern();
-                case "'" -> new VariablePattern(grab());
-                default -> Atom.of(token);
+                case "]" -> Term.Singleton.END_OF_LIST;
+                case "'" -> Term.Atomic.of('\'' + grab());
+                case String s -> Term.Atomic.of(s);
             };
         }
 
-        private NestedNode parseList() {
-            final ArrayList<AST> nodes = new ArrayList<>();
+        private Term parseList() {
+            final ArrayList<Term> nodes = new ArrayList<>();
             // System.out.println("Parsing list");
-            AST current;
-            while (hasNext() && ((current = parseValue()) != ASTSingletons.END_OF_LIST)) {
+            Term current;
+            while (hasNext() && ((current = parseValue()) != Term.Singleton.END_OF_LIST)) {
                 if (current != null) {
                     nodes.add(current);
                 }
@@ -249,33 +367,7 @@ public class Metasulfate {
             return switch (nodes.size()) {
                 // case 1 -> new ValueNode(nodes.get(0));
                 case 0 -> null;
-                default -> new NestedNode(List.copyOf(nodes));
-            };
-        }
-
-        private Pattern parsePatternValue() {
-            String token = grab();
-            // System.out.println("Parsing value: " + token);
-            return switch (token) {
-                case "{" -> parseSequencePattern();
-                case "}" -> SingletonPatterns.END_OF_SEQUENCE;
-                case "'" -> new VariablePattern(grab());
-                default -> LiteralPattern.of(token);
-            };
-        }
-
-        private SequencePattern parseSequencePattern() {
-            final ArrayList<Pattern> patterns = new ArrayList<>();
-            Pattern current;
-            while (hasNext() && ((current = parsePatternValue()) != SingletonPatterns.END_OF_SEQUENCE)) {
-                if (current != null) {
-                    patterns.add(current);
-                }
-            }
-            return switch (patterns.size()) {
-                // case 1 -> new ValueNode(nodes.get(0));
-                case 0 -> null;
-                default -> new SequencePattern(List.copyOf(patterns));
+                default -> Term.Nested.of(List.copyOf(nodes));
             };
         }
 
@@ -285,7 +377,7 @@ public class Metasulfate {
 
         private String grab() {
             final String t = src.get(cursor++);
-            System.out.println("Grabbing token: " + t);
+            // System.out.println("Grabbing token: " + t);
             return t;
         }
 
