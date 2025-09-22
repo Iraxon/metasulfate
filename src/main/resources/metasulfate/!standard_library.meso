@@ -3,12 +3,15 @@
 [NOT F] -> T [
 [NOT T] -> F [
 
+['x AND 'y] -> F [
+[T AND T] -> T [
+
 ['x NAND 'y] -> T [
 [T NAND T] -> F [
 
 [IF F 'x 'y] -> y [
 [IF T 'x 'y] -> x [
 
-    IF [NOT [T NAND T]] 1 2
+    IF [NOT [[T NAND T] AND [T NAND T]]] 1 2
 
-]]]]]]
+]]]]]]]]

@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import net.iraxon.metasulfate.Metasulfate.Term.Nested.RewriteOrder;
@@ -97,7 +98,7 @@ public class Metasulfate {
                     list.add(s);
                 }
             };
-            String acc = "";
+            String accumulatedToken = "";
             int cursor = 0;
 
             int commentNestingDepth = 0; // Increments on left paren; decreases on right paren
@@ -107,27 +108,27 @@ public class Metasulfate {
             for (cursor = 0; cursor < len; cursor++) {
                 current = src.charAt(cursor);
                 if (current == '(') {
-                    add.accept(acc);
-                    acc = "";
+                    add.accept(accumulatedToken);
+                    accumulatedToken = "";
                     commentNestingDepth++;
                 }
                 if (commentNestingDepth == 0) {
                     if (Character.isWhitespace((int) current)) {
-                        if (acc.length() > 0 && whitespaceCompatible.contains(acc.charAt(0))) {
-                            acc += current;
+                        if (accumulatedToken.length() > 0 && whitespaceCompatible.contains(accumulatedToken.charAt(0))) {
+                            accumulatedToken += current;
                         } else {
-                            add.accept(acc);
-                            acc = "";
+                            add.accept(accumulatedToken);
+                            accumulatedToken = "";
                         }
                     } else if (punctuation.contains(current)) {
-                        add.accept(acc);
-                        acc = "";
+                        add.accept(accumulatedToken);
+                        accumulatedToken = "";
                         add.accept("" + current);
                     } else {
                         if (cursor + 1 >= src.length()) {
-                            add.accept(acc + current);
+                            add.accept(accumulatedToken + current);
                         }
-                        acc += current;
+                        accumulatedToken += current;
                     }
                 } else if (commentNestingDepth < 0) {
                     throw new IllegalStateException("Unmatched closing paren on comment");
@@ -136,6 +137,29 @@ public class Metasulfate {
                     commentNestingDepth--;
                 }
             }
+        }
+    }
+
+    public static class Lazy<T> implements Supplier<T> {
+        private final Supplier<T> supplier;
+        private boolean cacheFilled = false;
+        private T cache = null;
+
+        public static <R> Lazy<R> of(Supplier<R> supplier) {
+            return new Lazy<>(supplier);
+        }
+
+        public Lazy(Supplier<T> supplier) {
+            this.supplier = supplier;
+        }
+
+        @Override
+        public T get() {
+            if (!cacheFilled) {
+                cache = supplier.get();
+                cacheFilled = true;
+            }
+            return cache;
         }
     }
 
